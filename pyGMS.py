@@ -1,20 +1,20 @@
-################################################################################
-#                     Copyright (C) 2019 by Christian Meeßen                   #
-#                                                                              #
-#                          This file is part of pyGMS                          #
-#                                                                              #
-#       GMTScripts is free software: you can redistribute it and/or modify     #
-#     it under the terms of the GNU General Public License as published by     #
-#           the Free Software Foundation version 3 of the License.             #
-#                                                                              #
-#      GMTScripts is distributed in the hope that it will be useful, but       #
-#          WITHOUT ANY WARRANTY; without even the implied warranty of          #
-#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU       #
-#                   General Public License for more details.                   #
-#                                                                              #
-#      You should have received a copy of the GNU General Public License       #
-#       along with Scripts. If not, see <http://www.gnu.org/licenses/>.        #
-################################################################################
+###############################################################################
+#                     Copyright (C) 2019 by Christian Meeßen                  #
+#                                                                             #
+#                          This file is part of pyGMS                         #
+#                                                                             #
+#       GMTScripts is free software: you can redistribute it and/or modify    #
+#     it under the terms of the GNU General Public License as published by    #
+#           the Free Software Foundation version 3 of the License.            #
+#                                                                             #
+#      GMTScripts is distributed in the hope that it will be useful, but      #
+#          WITHOUT ANY WARRANTY; without even the implied warranty of         #
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      #
+#                   General Public License for more details.                  #
+#                                                                             #
+#      You should have received a copy of the GNU General Public License      #
+#       along with Scripts. If not, see <http://www.gnu.org/licenses/>.       #
+###############################################################################
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
@@ -55,6 +55,7 @@ def show_progress(i_step=None, i_max=None):
         stdout.write('\rProgress: %d%%' % progress)
     else:
         stdout.write("\rProgress: 100%\n")
+    # TODO: fix bug where `Progress: 100%`` is shown twice
     stdout.flush()
     return i_step + 1
 
@@ -640,6 +641,34 @@ class GMS:
 
     def plot_profile(self, x0, y0, x1, y1, var='T', num=100, ax=None,
                      unit='m', type='filled', xaxis='dist', **kwds):
+        """
+        Plot a profile of variable `var` along the specified coordinates.
+
+        Parameters
+        ----------
+        x0, y0, x1, y1 : float
+            Coordinates of start end end point
+        var : str
+            Name of the variable in the GMS file. Can also be 'litho'
+        num : int
+            Number of sampling points in horizontal direction
+        ax : matplotlib.axis
+            The axis to plot to
+        unit : str
+            Defines z unit. 'm' or 'km'
+        type : str
+            'filled' for a filled contour plot or 'lines' for contours
+        xaxis : str
+            The dimension to show along the x-axis. 'dist' for distance
+            where 0km is at (x0,y0), 'x' or 'y' for the respective axis.
+        kwds : dict
+           Keywords sent to matplotlib.pyplot.tricontour() or
+           matplotlib.pyplot.contourf(), depoending on `type`
+
+        Returns
+        -------
+        mappable
+        """
         valid_types = ['filled', 'lines']
         if type not in valid_types:
             raise ValueError('Invalid type', type)
