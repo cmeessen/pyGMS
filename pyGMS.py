@@ -155,6 +155,36 @@ class Well:
     def add_var(self, varname, data):
         self.vars[varname] = data
 
+    def get_interpolated_var(self, nz, varname):
+        """
+        Computes values of variable `varname` at `nz` equally spaced points
+        along the well.
+
+        Parameters
+        ----------
+        nz : int
+            Number of points incl. start point and end point
+        varname : str
+            Variable name
+
+        Returns
+        -------
+        z : np.array
+            The detph values
+        vars : np.array
+            The values of the variable at z
+        layer_ids : np.array
+            The corresponding layer ids
+        """
+        ip = interpolate.interp1d(self.z, self.vars[varname])
+        z = np.linspace(self.z.max(), self.z.min(), nz)
+        var_values = ip(z)
+        # Obtain the layer ids for each point
+        g_layer_tops, g_z = np.meshgrid(self.z, z)
+        cond = g_z <= g_layer_tops
+        layer_ids = np.sum(cond, axis=1) - 1
+        return z, var_values, layer_ids
+
     def grad(self, varname, interp=None):
         """
         Returns the vertical gradient of the variable `varname`.
@@ -162,6 +192,9 @@ class Well:
         Parameters
         ----------
         varname : str
+            Variable name
+        interp : int
+            Number of equally spaced points where grad should be calculated
 
         Returns
         -------
@@ -171,14 +204,15 @@ class Well:
             gradients, depths
         """
         if interp:
-            ip = interpolate.interp1d(self.z, self.vars[varname])
-            z = np.linspace(self.z.max(), self.z.min(), interp)
-            vars = ip(z)
-            return np.gradient(vars, z), z
+            #ip = interpolate.interp1d(self.z, self.vars[varname])
+            #z = np.linspace(self.z.max(), self.z.min(), interp)
+            #vars = ip(z)
+            z, var_values, layer_ids = self.get_interpolated_var(interp, varname)
+            return np.gradient(var_values, z), z
         else:
             z = self.z
-            vars = self.vars[varname]
-            return np.gradient(vars, z)
+            var_values = self.vars[varname]
+            return np.gradient(var_values, z)
 
     def plot_var(self, varname):
         plt.plot(self.vars[varname], self.z, label=varname)
@@ -227,7 +261,7 @@ class GMS:
     verbosity : int
         Can be 0, 1 or 2. Level 2 is only for debugging.
     """
-
+    
     def __init__(self, filename, triangulate=True, verbosity=0):
         self.gms_fem = filename
 
@@ -249,8 +283,11 @@ class GMS:
         self.points_per_layer = None
         self.layer_points = None
         self.surface_heat_flow = None
-        self.wells = {}
         self._info_df = None
+
+        # Storage
+        self.wells = {}
+        self._strength_profiles = {}
 
         print('Loading', self.gms_fem)
         self.read_header()
@@ -388,6 +425,195 @@ class GMS:
             self._get_lims_()
         return self._zlim
 
+    @staticmethod
+    def sigma_byerlee(material, z, mode):
+        """
+        Compute the byerlee differential stress. Requires the material
+        properties friction coefficient (f_f), pore fluid factor (f_p) and
+        the bulk density (rho_b).
+
+        Parameters
+        ----------
+        material : dict
+            Dictionary with the material properties in SI units. The
+            required keys are 'f_f_e', 'f_f_c', 'f_p' and 'rho_b'
+        z : float
+            Depth below surface in m
+        mode : str
+            'compression' or 'extension'
+
+        Returns
+        -------
+            sigma_d : float
+        """
+        if mode == 'compression':
+            f_f = material['f_f_c'][0]
+        elif mode == 'extension':
+            f_f = material['f_f_e'][0]
+        else:
+            raise ValueError('Invalid parameter for mode:', mode)
+        f_p = material['f_p'][0]
+        rho_b = material['rho_b'][0]
+        g = 9.81  # m/s2
+        return f_f*rho_b*g*z*(1.0 - f_p)
+
+    @staticmethod
+    def sigma_diffusion(material, temp, strain_rate):
+        """
+        Computes differential stress for diffusion creept at specified
+        temperature and strain rate. Material properties require grain size 'd',
+        grain size exponent 'm', preexponential scaling factor for diffusion
+        creep 'a_f', and activation energy 'q_f'.
+
+        For diffusion creep, n=1.
+
+        Parameters
+        ----------
+        material : dict
+            Dictionary with the material properties in SI units. Required
+            keys are 'd', 'm', 'a_f', 'q_f'
+        temp : float
+            Temperature in Kelvin
+        strain_rate : float
+            Reference strain rate in 1/s
+
+        Returns
+        -------
+            sigma_diffusion : float
+        """
+        R = 8.314472 #m2kg/s2/K/mol
+        d = material['d'][0]
+        m = material['m'][0]
+        a_f = material['a_f'][0]
+        q_f = material['q_f'][0]
+        return d**m*strain_rate/a_f*np.exp(q_f/R/temp)
+
+    @staticmethod
+    def sigma_dislocation(material, temp, strain_rate):
+        """
+        Compute differential stress envelope for dislocation creep at
+        certain temeprature and strain rate. Requires preexponential scaling
+        factor 'a_p', power law exponent 'n' and activation energy 'q_p'.
+
+        Parameters
+        ----------
+        material : dict
+            Dictionary with the material properties in SI units. Required
+            keys are 'a_p', 'n' and 'q_p'
+        temp : float
+            Temperature in Kelvin
+        strain_rate : float
+            Reference strain rate in 1/s
+
+        Returns
+        -------
+            sigma_d : float
+        """
+        R = 8.314472 # m2kg/s2/K/mol
+        a_p = material['a_p'][0]
+        n = material['n'][0]
+        q_p = material['q_p'][0]
+        return (strain_rate/a_p)**(1.0/n)*np.exp(q_p/n/R/temp)
+
+    @staticmethod
+    def sigma_dorn(material, temp, strain_rate):
+        """
+        Compute differential stress for solid state creep with Dorn's law.
+        Requires Dorn's law stress 'sigma_d', Dorn's law activation energy
+        'q_d' and Dorn's law strain rate 'A_p'.
+
+        Dorn's creep is a special case of Peierl's creep with q=2
+
+        sigma_delta = sigma_d*(1-(-R*T/Q*ln(strain_rate/A_d))^(1/q))
+
+        Parameters
+        ----------
+        material : dict
+            Dictionary with the material properties in SI units. Required
+            keys are 'sigma_d', 'q_d' and 'A_p'
+        temp : float
+            Temperature in Kelvin
+        strain_rate : float
+            Reference strain rate in 1/s
+
+        Returns
+        -------
+            sigma_d : float
+        """
+        R = 8.314472 # m2kg/s2/K/mol
+        sigma_d = material['sigma_d'][0]
+        q_d = material['q_d'][0]
+        a_d = material['a_d'][0]
+        return sigma_d*(1.0 - np.sqrt(-1.0*R*temp/q_d*np.log(strain_rate/a_d)))
+
+    def sigma_d(self, material, z, temp, strain_rate=None,
+                compute=None, mode=None):
+        """
+        Computes differential stress for a material at given depth, temperature
+        and strain rate. Returns the minimum of Byerlee's law, dislocation creep
+        or dorn's creep.
+
+        Parameters
+        ----------
+        material : dict
+            Dict containing material properties required by sigma_byerlee() and
+            sigma_dislocation()
+        z : float
+            Positive depth im m below surface
+        temp : float
+            Temperature in K
+        strain_rate : float
+            Reference strain rate in 1/s. If `None` will use self.strain_rate
+        compute : list
+            List of processes to compute: 'dislocation', 'diffusion', 'dorn'.
+            Default is ['dislocation', 'dorn'].
+        mode : str
+            'compression' or 'extension'
+
+        Returns
+        -------
+        Sigma : float
+            Differential stress in Pa
+        """
+        # TODO: looping through each datapoint is inefficient. This should
+        #  be implemented to work with numpy arrays
+        if z < 0:
+            raise ValueError('Depth must be positive. Got z =', z)
+        if strain_rate is None:
+            e_prime = self.strain_rate
+        else:
+            e_prime = strain_rate
+
+        compute_default = ['dislocation', 'dorn']
+        if compute is None:
+            compute = compute_default
+        else:
+            # Check the keywords
+            for kwd in compute:
+                if kwd not in compute_default:
+                    raise ValueError('Unknown compute keyword', kwd)
+
+        s_byerlee = self.sigma_byerlee(material, z, mode)
+
+        if 'diffusion' in compute:
+            s_diff = self.sigma_diffusion(material, temp, e_prime)
+        else:
+            s_diff = np.nan
+
+        if 'dislocation' in compute and 'dorn' in compute:
+            if s_byerlee > 200e6:
+                s_creep = self.sigma_dislocation(material, temp, e_prime)
+            else:
+                s_creep = self.sigma_dorn(material, temp, e_prime)
+        elif 'dislocation' in compute and not 'dorn' in compute:
+            s_creep = self.sigma_dislocation(material, temp, e_prime)
+        elif 'dorn' in compute and not 'dislocation' in compute:
+            s_creep = self.sigma_dorn(material, temp, e_prime)
+        else:
+            s_creep = np.nan
+
+        return min([s_byerlee, s_creep, s_diff])
+
     def compute_surface_heat_flow(self, return_tcond=False, spacing=None,
                                   force=False):
         """
@@ -456,15 +682,15 @@ class GMS:
 
     def get_well(self, x, y, var=None, store=True):
         """
-        By default returns an array of layer depth values at the specified
-        coordinates. If var is given, additionally the value of the variable
-        will be returned.
+        By default returns a Well instance at the specified coordinates. If
+        var is given, additionally the value of the variable will be returned.
 
         Parameters
         ----------
-        x : float
-        y : float
+        x, y : float, float
+            The coordinates
         var : str
+            Name of the variable
         store : bool
             If `True` will store the well object in self.wells.
 
@@ -627,6 +853,117 @@ class GMS:
             z = np.asarray(z)*scale
             plt.plot(d, z, color=lc, lw=lw)
 
+    def plot_strength_profile(self, x0, y0, x1, y1, strain_rate=None, num=1000,
+                              num_vert=100, xaxis='dist', unit='km',
+                              mode='compression', levels=50, force=False,
+                              ax=None):
+        """
+        Compute the strength for the given strain rate along an arbitrary
+        profile.
+
+        Parameters
+        ----------
+        x0, y0 : float, float
+            Start point coordinates / m
+        x1, y1 : float, float
+            End point coordinates / m
+        num : int
+            Number of sampling points in horizontal direction
+        num_vert : int
+            Number of sampling points in vertical direction
+        xaxis : str
+        unit : str
+            Unit of length, `km` or `m`
+        mode : str
+            'compression' or 'extension'
+        levels : int or np.array
+            If `int` defines the number of levels for the contour plot,
+            if a 1D numpy array will use these levels as contour levels.
+        force : bool
+            If 'True` will force the new computation of the strength
+        ax : matplotlib.axes
+            Axes object to plot onto. If `None` will use matplotlib.pyplot
+
+        Returns
+        -------
+        mappable
+        """
+        if unit == 'km':
+            scale = 0.001
+        elif unit == 'm':
+            scale = 1.0
+        else:
+            raise ValueError('Unknown unit', unit)
+        if ax is None:
+            import matplotlib.pyplot as plt
+        else:
+            plt = ax
+        # Make the points where to sample the model
+        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
+        if xaxis == 'dist':
+            d = dist
+        elif xaxis == 'x':
+            d = px * scale
+        elif xaxis == 'y':
+            d = py * scale
+        else:
+            raise ValueError('Unknown xaxis', xaxis)
+        d = d.tolist()
+
+        if strain_rate is None:
+            strain_rate = self.strain_rate
+
+        # Check whether Temperatures are loaded
+        var = 'T'
+        if var not in list(self.layers[0].interpolators.keys()):
+            self.layer_add_var(var)
+
+        # Check if stored
+        # TODO: This must be handled better, is missing rheology and
+        #  coordinate system!
+        profile_stats = (x0, y0, x1, y1, strain_rate)
+        if profile_stats in self._strength_profiles.keys() and not force:
+            t, strength = self._strength_profiles[profile_stats]
+        else:
+            # Obtain the wells
+            depths = []
+            temps = []
+            topography = []
+            layer_ids = []
+            strength = []
+            profile_distance = []
+            print('Computing strength')
+            i = show_progress()
+            imax = len(px)
+            for x, y, p_dist in zip(px, py, d):
+                well = self.get_well(x, y, var)  # type: Well
+                zs, T, lay_ids = well.get_interpolated_var(num_vert, var)
+                topography.append(zs[0])
+                depths.extend(zs)
+                temps.extend(T)
+                layer_ids.extend(lay_ids)
+                for z, lay_id, temp in zip(zs, lay_ids, T):
+                    ztopo = zs[0]
+                    mat_name = self._body_rheology[lay_id]
+                    material = self.materials[self.materials['name'] == mat_name]
+                    strength.append(self.sigma_d(material=material, z=ztopo-z,
+                                                 temp=temp+273.15,
+                                                 strain_rate=strain_rate,
+                                                 mode=mode))
+                    profile_distance.append(p_dist)
+                i = show_progress(i, imax)
+            t = tri.Triangulation(x=np.asarray(profile_distance),
+                                  y=np.asarray(depths)*scale)
+            self._strength_profiles[profile_stats] = (t, strength)
+
+        if isinstance(levels, int):
+            levels = np.linspace(min(strength), max(strength), levels)
+
+        return plt.tricontourf(t, strength, levels=levels)
+
+
+
+
     def plot_topography(self, ax=None):
         if ax is None:
             import matplotlib.pyplot as plt
@@ -721,6 +1058,78 @@ class GMS:
             return plt.tricontourf(t, v, **kwds)
         elif type == 'lines':
             return plt.tricontour(t, v, **kwds)
+
+    def set_rheology(self, strain_rate, rheologies, bodies):
+        """
+        Define the rheological parameters.
+
+        Parameters
+        ----------
+        strain_rate : float
+            The strain rate in 1/s.
+
+        rheologies : list
+            List of dictionaries with rock properties. The following
+            properties must be assigned as keys:
+
+            * name    : the name of the material
+            * f_f_c   : friction coefficient for compression
+            * f_f_e   : friction coefficient for extension
+            * f_p     : pore fluid factor
+            * rho_b   : bulk density
+            * a_p     : pre-exponential factor
+            * n       : power law exponent
+            * q_p     : activation energy
+            * sigma_d : Dorn's law stress
+            * q_d     : Dorn's law activation energy
+            * a_d     : Dorn's law strain rate
+
+            If a property should not be used, assign `None`.
+
+        bodies : dict
+            Dictionary with {layer_name: material}: where material is the name
+            of the material in the `rheologies` dictionary, and layer_name
+            is the **unique** layer name, i.e. the layer names in
+            self.layer_dict_unique.
+
+            bodies = {'LayerName1':'diorite_dry', 'LayerName2:'olivine_dry'}
+        """
+        #  Assign strain rate and body materials
+        self.strain_rate = strain_rate
+        self._body_rheology = OrderedDict()
+        for layer_name in bodies.keys():
+            material = bodies[layer_name]
+            i=0
+            for id in self.layer_dict.keys():
+                name = self.layer_dict[id].split('_')[0]
+                if name == layer_name:
+                    self._body_rheology[i] = material
+                i+=1
+        # Define the material properties
+        n_rocks = len(rheologies)
+        dtypes = [('name', object),
+                  # Beyerlees properties
+                  ('f_f_c', float), ('f_f_e', float), ('f_p', float),
+                  ('rho_b', float),
+                  # Dislocation creep parameter
+                  ('a_p', float), ('n', float), ('q_p', float),
+                  # Diffusion creep parameters
+                  ('a_f', float), ('q_f', float), ('d', float), ('m', float),
+                  # Dorns law parameters
+                  ('sigma_d', float), ('q_d', float), ('a_d', float),
+                  # Metadata
+                  ('source', object), ('via', object), ('altname', object)]
+        # Make a list of props for later usages
+        props = []
+        for d in dtypes:
+            props.append(d[0])
+        self.materials = np.zeros([n_rocks], dtype=dtypes)
+        i = 0
+        for entry in rheologies:
+            for key in entry.keys():
+                if key in props:
+                    self.materials[key][i] = entry[key]
+            i += 1
 
 
 def read_args():
