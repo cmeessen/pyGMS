@@ -61,7 +61,6 @@ def show_progress(i_step=None, i_max=None):
 
 
 def check_ipython():
-    from packaging.markers import Value
     if not os.environ.get('DISPLAY'):
         print('DISPLAY variable not set. Switching to agg')
         try:
@@ -817,7 +816,39 @@ class GMS:
         plt.ylim(self.ylim)
 
     def plot_layer_bounds(self, x0, y0, x1, y1, num=100, lc='black', lw=1,
-                          unit='m', only_unique=True, ax=None, xaxis='dist'):
+                          unit='m', only='unique', ax=None, xaxis='dist',
+                          **kwds):
+        """
+        Plot the layer tops as lines along the given profile. By default only
+        plots unqiue layers, i.e. not the refined layers. Use `only_unique` to
+        change this behaviour.
+
+        Paramters
+        ---------
+        x0, y0, x1, y1 : float, float, float, float
+            Start and end point of the profile
+        num : int
+            Number of sampling points along the profile
+        lc : str
+            Line colours
+        lw : float
+            Line width
+        unit : str
+            Distance units in 'm' or 'km'
+        only : str, int, list
+            Define which layers should be plotted. `unique` does not plot the
+            refinements, `all` plots all layers incl. refinements, stating an
+            int or list of int will plot the layers with the given ids.
+        ax : matplotlib.axes
+            The axes to plot into
+        xaxis : str
+            The coordinate to show along the horizontal axis in the plot. Can
+            be 'dist' (starts at 0), 'x' or 'y'.
+        lay_id : None, int or list
+            If stated will only plot layers with the given id(s).
+        ** kwds
+            Keywords going to matplotlib.pyplot.plot
+        """
         if unit == 'm':
             scale = 1
         elif unit == 'km':
@@ -825,8 +856,16 @@ class GMS:
         else:
             raise ValueError('Unknown unit', unit)
 
-        if only_unique:
+        if only == 'unique':
             layer_d = self.layer_dict_unique
+        elif only == 'all':
+            layer_d = self.layer_dict
+        elif isinstance(only, int):
+            layer_d = {only: self.layer_dict[only]}
+        elif isinstance(only, list):
+            layer_d = {}
+            for i in only:
+                layer_d[i] = self.layer_dict[i]
         else:
             layer_d = self.layer_dict
 
@@ -851,7 +890,7 @@ class GMS:
             for x, y in zip(px, py):
                 z.append(layer(x, y))
             z = np.asarray(z)*scale
-            plt.plot(d, z, color=lc, lw=lw)
+            plt.plot(d, z, color=lc, lw=lw, **kwds)
 
     def plot_strength_profile(self, x0, y0, x1, y1, strain_rate=None, num=1000,
                               num_vert=100, xaxis='dist', unit='km',
@@ -1184,7 +1223,7 @@ if __name__ == '__main__':
         ax = axes[0]
         triangulation = tri.Triangulation(d, z)
         mappable = ax.tricontourf(triangulation, dsigma, 100)
-        model.plot_layer_bounds(x0, y0, x1, y1, lw=2, only_unique=True,
+        model.plot_layer_bounds(x0, y0, x1, y1, lw=2, only='unique',
                                 unit='km', ax=ax)
         plt.colorbar(mappable=mappable, ax=ax, label='Yield strength / GPa')
         ax.set_xlabel('Distance / km')
