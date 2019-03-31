@@ -143,6 +143,7 @@ class Well:
         self.y = y
         self.z = np.asarray(z)
         self.vars = {}
+        self.zero_threshold = 0.1 # Minimum layer thickness
 
     def __call__(self):
         return self.z
@@ -181,6 +182,12 @@ class Well:
         g_layer_tops, g_z = np.meshgrid(self.z, z)
         cond = g_z <= g_layer_tops
         layer_ids = np.sum(cond, axis=1) - 1
+        # Check the thicknesses of the corresponding layer ids and replace if
+        # thickness is less than a given threshold
+        zero_t_lay_ids = np.argwhere(-1*np.diff(self.z) <= self.zero_threshold)
+        # incrementally increase those ids
+        for i in zero_t_lay_ids:
+            layer_ids[layer_ids == i] = i + i 
         return z, var_values, layer_ids
 
     def grad(self, varname, interp=None):
@@ -259,6 +266,9 @@ class GMS:
     verbosity : int
         Can be 0, 1 or 2. Level 2 is only for debugging.
     """
+
+    # TODO: Make a Material class which contains all relevant data
+    # TODO: Make a Body class
     
     def __init__(self, filename, triangulate=True, verbosity=0):
         self.gms_fem = filename
@@ -286,6 +296,9 @@ class GMS:
         # Storage
         self.wells = {}
         self._strength_profiles = {}
+        self.materials_db = None     # Materials databse
+        self.body_materials = None   # Materials for each body
+        self.elastic_thickness = {} # eff. elastic thickness depending on strain rate
 
         print('Loading', self.gms_fem)
         self.read_header()
@@ -542,6 +555,10 @@ class GMS:
         sigma_d = material['sigma_d'][0]
         q_d = material['q_d'][0]
         a_d = material['a_d'][0]
+        if q_d == 0 or a_d == 0:
+            print(q_d,a_d)
+            print (material)
+            raise ValueError('q_d, a_d is zero')
         return sigma_d*(1.0 - np.sqrt(-1.0*R*temp/q_d*np.log(strain_rate/a_d)))
 
     def sigma_d(self, material, z, temp, strain_rate=None,
@@ -599,7 +616,7 @@ class GMS:
             s_diff = np.nan
 
         if 'dislocation' in compute and 'dorn' in compute:
-            if s_byerlee > 200e6:
+            if s_byerlee > 200e6 or material['q_d'] == 0:
                 s_creep = self.sigma_dislocation(material, temp, e_prime)
             else:
                 s_creep = self.sigma_dorn(material, temp, e_prime)
@@ -664,6 +681,89 @@ class GMS:
         self.surface_heat_flow[:, 2] = np.asarray(hflow)
         if return_tcond:
             return tconds
+    
+    def compute_elastic_thickness(self, dx=50e3, nz=500, mode='compression',
+                                  strain_rate=None, grad_crit=20,
+                                  plitho_crit=0.05):
+        """
+        Compute the effect elastic thickness after Burov and Diament (1995).
+        First, the mechanical thickness is computed. It is defined as the depth
+        from the layer top to the point where the differential stress is less
+        than 5% of lithostatic pressure or where the gradient d_sigma/dz is
+        below 20 MPa/km.
+
+        Parameters
+        ----------
+        dx : float
+            Horizontal resolution of the output
+        nz : int
+            Number of points used to compute Te at each point
+        mode : str
+            'compression' or 'extension'
+        strain_rate : None or float
+            If None will use self.strain_rate
+        """
+        strain_rate = strain_rate or self.strain_rate
+        xmin, xmax = self.xlim
+        ymin, ymax = self.ylim
+        pointsx = np.arange(xmin, xmax+dx, dx)
+        pointsy = np.arange(ymin, ymax+dx, dx)
+        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+        eff_Te = []
+        competent_layers = []
+        print('Computing elastic thickness')
+        print('> Mode                      :', mode)
+        print('> Strain rate               :', strain_rate, '1/s')
+        print('> Horizontal resolution     :', dx, 'm')
+        print('> Number of vertical points :', nz)
+        print('> dSigma gradient limit     :', grad_crit,'MPa/km')
+        print('> Lithostatic pressure limit:', plitho_crit*100,'% of Plitho')
+        n = show_progress()
+        nmax = xgrid.flatten().shape[0]
+        for x, y in zip(xgrid.flatten(), ygrid.flatten()):
+            well = self.get_well(x, y, var='T')
+            zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
+            ztopo = zs[0]
+            strength = []
+            P_litho = []
+            for z, lay_id, temp in zip(zs, lay_ids, T):
+                mat_name = self.body_materials[lay_id]
+                material = self.materials_db[self.materials_db['name'] == mat_name]
+                T_K = temp + 273.15
+                dsigma = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
+                                    strain_rate=strain_rate, mode=mode)
+                strength.append(dsigma)
+                P_litho.append(self.sigma_byerlee(material, ztopo-z, mode))
+            # Compute the mechanical thickness of each layer
+            strength = np.asarray(strength)
+            grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
+            P_mech = np.asarray(P_litho)*plitho_crit
+            # Use simplification by Burov and Diament (1995), p. 3915
+            # Get a bool array, where layers are mechanical with respect to PLitho
+            is_competent_P = strength >= P_mech
+            # Bool array where layers are mechanical with respect to gradient
+            is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
+            is_competent = np.logical_and(is_competent_P, is_competent_grad)
+            h_mechs = []
+            for i in range(is_competent.shape[0]):
+                if is_competent[i] == False and is_competent[i-1] == True:
+                    h_mechs.append(ztopo-zs[i])
+            competent_layers.append(len(h_mechs))
+            if len(h_mechs) > 1:
+                # In case of multiple h_mechs, i.e. when decoupled layers exist
+                h_mech = 0
+                for h in h_mechs:
+                    h_mech += h**3
+                h_mech = h_mech**(1.0/3.0)
+            else:
+                h_mech = h_mechs[0]
+            eff_Te.append(h_mech)
+            n = show_progress(n, nmax)
+        result = np.empty([xgrid.flatten().shape[0], 3])
+        result[:,0] = xgrid.flatten()
+        result[:,1] = ygrid.flatten()
+        result[:,2] = np.asarray(eff_Te)
+        self.elastic_thickness[strain_rate] = [competent_layers, result]
 
     def get_uppermost_layer(self, x, y, tmin=1.0):
         well = self.get_well(x, y)
@@ -894,7 +994,7 @@ class GMS:
     def plot_strength_profile(self, x0, y0, x1, y1, strain_rate=None, num=1000,
                               num_vert=100, xaxis='dist', unit='km',
                               mode='compression', levels=50, force=False,
-                              ax=None):
+                              ax=None, dsigma='Pa'):
         """
         Compute the strength for the given strain rate along an arbitrary
         profile.
@@ -936,6 +1036,12 @@ class GMS:
             import matplotlib.pyplot as plt
         else:
             plt = ax
+        if dsigma == 'GPa':
+            dsigma_scale = 1e-9
+        elif dsigma == 'MPa':
+            dsigma_scale = 1e-6
+        elif dsigma == 'Pa':
+            dsigma_scale = 1
         # Make the points where to sample the model
         px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
         if xaxis == 'dist':
@@ -976,18 +1082,18 @@ class GMS:
             for x, y, p_dist in zip(px, py, d):
                 well = self.get_well(x, y, var)  # type: Well
                 zs, T, lay_ids = well.get_interpolated_var(num_vert, var)
-                topography.append(zs[0])
+                ztopo = zs[0]
+                topography.append(ztopo)
                 depths.extend(zs)
                 temps.extend(T)
                 layer_ids.extend(lay_ids)
                 for z, lay_id, temp in zip(zs, lay_ids, T):
-                    ztopo = zs[0]
-                    mat_name = self._body_rheology[lay_id]
-                    material = self.materials[self.materials['name'] == mat_name]
+                    mat_name = self.body_materials[lay_id]
+                    material = self.materials_db[self.materials_db['name'] == mat_name]
                     strength.append(self.sigma_d(material=material, z=ztopo-z,
                                                  temp=temp+273.15,
                                                  strain_rate=strain_rate,
-                                                 mode=mode))
+                                                 mode=mode)*dsigma_scale)
                     profile_distance.append(p_dist)
                 i = show_progress(i, imax)
             t = tri.Triangulation(x=np.asarray(profile_distance),
@@ -1134,14 +1240,15 @@ class GMS:
         """
         #  Assign strain rate and body materials
         self.strain_rate = strain_rate
-        self._body_rheology = OrderedDict()
+        self.body_materials = OrderedDict()
+        # Assign the materials to the layers
         for layer_name in bodies.keys():
             material = bodies[layer_name]
             i=0
             for id in self.layer_dict.keys():
                 name = self.layer_dict[id].split('_')[0]
                 if name == layer_name:
-                    self._body_rheology[i] = material
+                    self.body_materials[i] = material
                 i+=1
         # Define the material properties
         n_rocks = len(rheologies)
@@ -1161,12 +1268,13 @@ class GMS:
         props = []
         for d in dtypes:
             props.append(d[0])
-        self.materials = np.zeros([n_rocks], dtype=dtypes)
+        self.materials_db = np.zeros([n_rocks], dtype=dtypes)
         i = 0
+        # Store all materials that are given, not only those in _body_rheology
         for entry in rheologies:
             for key in entry.keys():
                 if key in props:
-                    self.materials[key][i] = entry[key]
+                    self.materials_db[key][i] = entry[key]
             i += 1
 
 
