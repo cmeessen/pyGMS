@@ -50,12 +50,11 @@ def show_progress(i_step=None, i_max=None):
     if i_step is None:
         i_step = 0
         stdout.write("Progress: 0%")
-    elif i_step < i_max - 1:
+    elif i_step <= i_max:
         progress = np.round((float(i_step) / float(i_max)) * 100, 2)
         stdout.write('\rProgress: %d%%' % progress)
-    else:
-        stdout.write("\rProgress: 100%\n")
-    # TODO: fix bug where `Progress: 100%`` is shown twice
+    if i_step == i_max:
+        stdout.write("\n")
     stdout.flush()
     return i_step + 1
 
