@@ -187,7 +187,7 @@ class Well:
         zero_t_lay_ids = np.argwhere(-1*np.diff(self.z) <= self.zero_threshold)
         # incrementally increase those ids
         for i in zero_t_lay_ids:
-            layer_ids[layer_ids == i] = i + i 
+            layer_ids[layer_ids == i[0]] = i[0] + 1
         return z, var_values, layer_ids
 
     def grad(self, varname, interp=None):
