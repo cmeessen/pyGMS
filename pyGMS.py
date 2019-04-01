@@ -269,7 +269,7 @@ class GMS:
 
     # TODO: Make a Material class which contains all relevant data
     # TODO: Make a Body class
-    
+
     def __init__(self, filename, triangulate=True, verbosity=0):
         self.gms_fem = filename
 
@@ -681,7 +681,7 @@ class GMS:
         self.surface_heat_flow[:, 2] = np.asarray(hflow)
         if return_tcond:
             return tconds
-    
+
     def compute_elastic_thickness(self, dx=50e3, nz=500, mode='compression',
                                   strain_rate=None, grad_crit=20,
                                   plitho_crit=0.05):
@@ -722,76 +722,120 @@ class GMS:
         nmax = xgrid.flatten().shape[0]
         for x, y in zip(xgrid.flatten(), ygrid.flatten()):
             well = self.get_well(x, y, var='T')
-            zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
-            ztopo = zs[0]
-            strength = []
-            P_litho = [0]
-            z_prev = ztopo
-            for z, lay_id, temp in zip(zs, lay_ids, T):
-                mat_name = self.body_materials[lay_id]
-                material = self.materials_db[self.materials_db['name'] == mat_name]
-                T_K = temp + 273.15
-                dsigma = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
-                                    strain_rate=strain_rate, mode=mode)
-                strength.append(dsigma)    # Unit: Pa
-                incr_thickness = z_prev - z
-                if incr_thickness > 0:
-                    dPlitho = material['rho_b'][0]*9.81*incr_thickness
-                    P_litho.append(P_litho[-1] + dPlitho)
-                z_prev = z
-                #P_litho.append(material['rho_b'][0]*9.81*(ztopo-z))
-                
-            # Compute the mechanical thickness of each layer
-            strength = np.abs(np.asarray(strength))
-            grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
-            P_mech = np.asarray(P_litho)*plitho_crit
-            # Use simplification by Burov and Diament (1995), p. 3915
-            # Get a bool array, where layers are mechanical with respect to PLitho
-            is_competent_P = strength >= P_mech
-            # Bool array where layers are mechanical with respect to gradient
-            is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
-            is_competent = np.logical_and(is_competent_P, is_competent_grad)
-            
-            # Detect the individual mechanical thicknesses
-            z_layer_top = ztopo
-            h_mechs = []
-            wait_for_next_layer = False
-            delta_z = zs[0] - zs[1]
-            for i in range(is_competent.shape[0]):
-                is_weak = is_competent[i] == False
-                was_strong_before = is_competent[i-1] == True
-                if i+1 == is_competent.shape[0]:
-                    is_continuous = True
-                else:
-                    # Check whether the following point is also not competent
-                    # required because gradient can be false at layer boundaries
-                    is_continuous = is_competent[i+1] == False
-                if wait_for_next_layer and not is_weak:
-                    wait_for_next_layer = False
-                    z_layer_top = zs[i]
-                if is_weak & is_continuous & was_strong_before:
-                    h = z_layer_top - zs[i]
-                    # Do not add if only one point is competent
-                    if h >= 2*delta_z:
-                        h_mechs.append(h)
-                    wait_for_next_layer = True
-                    
-            competent_layers.append(len(h_mechs))
-            if len(h_mechs) > 1:
-                # In case of multiple h_mechs, i.e. when decoupled layers exist
-                h_mech = 0
-                for h in h_mechs:
-                    h_mech += h**3
-                h_mech = h_mech**(1.0/3.0)
-            else:
-                h_mech = h_mechs[0]
-            eff_Te.append(h_mech)
+            result = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
+                                      grad_crit)
+            competent_layers.append(result['n_layers'])
+            eff_Te.append(result['Te'])
             n = show_progress(n, nmax)
         result = np.empty([xgrid.flatten().shape[0], 3])
         result[:,0] = xgrid.flatten()
         result[:,1] = ygrid.flatten()
         result[:,2] = np.asarray(eff_Te)
         self.elastic_thickness[strain_rate] = [competent_layers, result]
+
+    def compute_yse(self, well, mode='compressiong', nz=500, strain_rate=None,
+                    plitho_crit=0.01, grad_crit=10.0):
+        """
+        Compute the yield strength envelope for a specific mode at a well
+        instance. Also computes the effect elastic thickness after Burov and
+        Diament (1995): First, the mechanical thickness is computed. It is
+        defined as the depth from the layer top to the point where the
+        differential stress is less than 1-5% of lithostatic pressure or where
+        the gradient d_sigma/dz is below 10-20 MPa/km.
+
+        Parameters
+        ----------
+        well : Well
+        mode : str
+            `compression` or `extension`.
+        nz : int
+            The number of sampling points in depth.
+        strain_rate : float
+            Strain rate in 1/s. If `None`, will use strain rate provided with
+            `set_rheology()`.
+        plitho_crit : float
+            Lithostatic pressure criterion betwen 0 and 1.
+        grad_crit : float
+            Diff. stress gradient criterion in MPa/km.
+            
+        Returns
+        -------
+        results : dict
+            Dictionary containing keys
+                - `dsigma_max`: the yield strength envelope
+                - `Te`        : the computed effective elastic thickness
+                - `n_layers`  : the number of decoupled layers according to the
+                                criteria
+        """
+        strain_rate = strain_rate or self.strain_rate
+        results = dict()
+        zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
+        ztopo = zs[0]
+        dsigma_max = []
+        P_litho = [0]
+        z_prev = ztopo
+        for z, lay_id, temp in zip(zs, lay_ids, T):
+            mat_name = self.body_materials[lay_id]
+            material = self.materials_db[self.materials_db['name'] == mat_name]
+            T_K = temp + 273.15
+            dsigma = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
+                                  strain_rate=strain_rate, mode=mode)
+            dsigma_max.append(dsigma)    # Unit: Pa
+            incr_thickness = z_prev - z
+            if incr_thickness > 0:
+                dPlitho = material['rho_b'][0]*9.81*incr_thickness
+                P_litho.append(P_litho[-1] + dPlitho)
+            z_prev = z
+        dsigma_max = np.asarray(dsigma_max)
+
+        # Compute the mechanical thickness of each layer
+        strength = np.abs(np.asarray(dsigma_max))
+        grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
+        P_mech = np.asarray(P_litho)*plitho_crit
+        # Use simplification by Burov and Diament (1995), p. 3915
+        # Get a bool array, where layers are mechanical with respect to PLitho
+        is_competent_P = strength >= P_mech
+        # Bool array where layers are mechanical with respect to gradient
+        is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
+        is_competent = np.logical_and(is_competent_P, is_competent_grad)
+
+        # Detect the individual mechanical thicknesses
+        z_layer_top = ztopo
+        h_mechs = []
+        wait_for_next_layer = False
+        delta_z = zs[0] - zs[1]
+        for i in range(is_competent.shape[0]):
+            is_weak = is_competent[i] == False
+            was_strong_before = is_competent[i-1] == True
+            if i+1 == is_competent.shape[0]:
+                is_continuous = True
+            else:
+                # Check whether the following point is also not competent
+                # required because gradient can be false at layer boundaries
+                is_continuous = is_competent[i+1] == False
+            if wait_for_next_layer and not is_weak:
+                wait_for_next_layer = False
+                z_layer_top = zs[i]
+            if is_weak & is_continuous & was_strong_before:
+                h = z_layer_top - zs[i]
+                # Do not add if only one point is competent
+                if h >= 2*delta_z:
+                    h_mechs.append(h)
+                wait_for_next_layer = True
+
+        if len(h_mechs) > 1:
+            # In case of multiple h_mechs, i.e. when decoupled layers exist
+            h_mech = 0
+            for h in h_mechs:
+                h_mech += h**3
+            h_mech = h_mech**(1.0/3.0)
+        else:
+            h_mech = h_mechs[0]
+
+        results['n_layers'] = len(h_mechs)
+        results['dsigma_max'] = dsigma_max
+        results['Te'] = h_mech
+        return results
 
     def get_uppermost_layer(self, x, y, tmin=1.0):
         well = self.get_well(x, y)
