@@ -725,17 +725,24 @@ class GMS:
             zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
             ztopo = zs[0]
             strength = []
-            P_litho = []
+            P_litho = [0]
+            z_prev = ztopo
             for z, lay_id, temp in zip(zs, lay_ids, T):
                 mat_name = self.body_materials[lay_id]
                 material = self.materials_db[self.materials_db['name'] == mat_name]
                 T_K = temp + 273.15
                 dsigma = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
                                     strain_rate=strain_rate, mode=mode)
-                strength.append(dsigma)
-                P_litho.append(self.sigma_byerlee(material, ztopo-z, mode))
+                strength.append(dsigma)    # Unit: Pa
+                incr_thickness = z_prev - z
+                if incr_thickness > 0:
+                    dPlitho = material['rho_b'][0]*9.81*incr_thickness
+                    P_litho.append(P_litho[-1] + dPlitho)
+                z_prev = z
+                #P_litho.append(material['rho_b'][0]*9.81*(ztopo-z))
+                
             # Compute the mechanical thickness of each layer
-            strength = np.asarray(strength)
+            strength = np.abs(np.asarray(strength))
             grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
             P_mech = np.asarray(P_litho)*plitho_crit
             # Use simplification by Burov and Diament (1995), p. 3915
@@ -744,10 +751,31 @@ class GMS:
             # Bool array where layers are mechanical with respect to gradient
             is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
             is_competent = np.logical_and(is_competent_P, is_competent_grad)
+            
+            # Detect the individual mechanical thicknesses
+            z_layer_top = ztopo
             h_mechs = []
+            wait_for_next_layer = False
+            delta_z = zs[0] - zs[1]
             for i in range(is_competent.shape[0]):
-                if is_competent[i] == False and is_competent[i-1] == True:
-                    h_mechs.append(ztopo-zs[i])
+                is_weak = is_competent[i] == False
+                was_strong_before = is_competent[i-1] == True
+                if i+1 == is_competent.shape[0]:
+                    is_continuous = True
+                else:
+                    # Check whether the following point is also not competent
+                    # required because gradient can be false at layer boundaries
+                    is_continuous = is_competent[i+1] == False
+                if wait_for_next_layer and not is_weak:
+                    wait_for_next_layer = False
+                    z_layer_top = zs[i]
+                if is_weak & is_continuous & was_strong_before:
+                    h = z_layer_top - zs[i]
+                    # Do not add if only one point is competent
+                    if h >= 2*delta_z:
+                        h_mechs.append(h)
+                    wait_for_next_layer = True
+                    
             competent_layers.append(len(h_mechs))
             if len(h_mechs) > 1:
                 # In case of multiple h_mechs, i.e. when decoupled layers exist
