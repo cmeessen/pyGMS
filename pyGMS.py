@@ -734,7 +734,7 @@ class GMS:
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
     def compute_yse(self, well, mode='compressiong', nz=500, strain_rate=None,
-                    plitho_crit=0.01, grad_crit=10.0):
+                    plitho_crit=0.01, grad_crit=10.0, return_params=None):
         """
         Compute the yield strength envelope for a specific mode at a well
         instance. Also computes the effect elastic thickness after Burov and
@@ -757,7 +757,9 @@ class GMS:
             Lithostatic pressure criterion betwen 0 and 1.
         grad_crit : float
             Diff. stress gradient criterion in MPa/km.
-            
+        return_params : list
+            List additional parameters that should be returned with result
+
         Returns
         -------
         results : dict
@@ -767,6 +769,9 @@ class GMS:
                 - `n_layers`  : the number of decoupled layers according to the
                                 criteria
         """
+        return_params = [] or return_params
+        if return_params is None:
+            return_params = list()
         strain_rate = strain_rate or self.strain_rate
         results = dict()
         zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
@@ -834,7 +839,12 @@ class GMS:
 
         results['n_layers'] = len(h_mechs)
         results['dsigma_max'] = dsigma_max
+        results['z'] = zs
         results['Te'] = h_mech
+
+        if 'is_competent' in return_params:
+            results['is_competent'] = is_competent
+
         return results
 
     def get_uppermost_layer(self, x, y, tmin=1.0):
@@ -1274,6 +1284,71 @@ class GMS:
             return plt.tricontourf(t, v, **kwds)
         elif type == 'lines':
             return plt.tricontour(t, v, **kwds)
+
+    def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
+                 plitho_crit=0.01, grad_crit=10.0):
+        """
+        Plot a yield strength envelope for the given mode at the specified
+        location `loc`.
+
+        Parameters
+        ----------
+        loc: Well, tuple, list
+            Either a well instance, (x, y) or [x, y]
+        mode : str
+            `compression` or `extension`.
+        nz : int
+            The number of sampling points in depth.
+        strain_rate : float
+            Strain rate in 1/s. If `None`, will use strain rate provided with
+            `set_rheology()`.
+        plitho_crit : float
+            Lithostatic pressure criterion betwen 0 and 1.
+        grad_crit : float
+            Diff. stress gradient criterion in MPa/km.
+        """
+        if isinstance(loc, Well):
+            well = loc
+            x = well.x
+            y = well.y
+        elif isinstance(loc, tuple) or isinstance(loc, list):
+            x, y = loc
+            well = self.get_well(x, y, var='T')
+        ymax = well.z[0]
+        ymin = well.z[-1]
+        results = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
+                                   grad_crit, return_params=['is_competent'])
+        strength = results['dsigma_max']
+        strength_z = results['z']
+        is_competent = results['is_competent']
+        eff_Te = results['Te']
+
+        strength_fill_competent = np.ma.masked_where(np.invert(is_competent),
+                                                     strength)
+
+        km = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-3))
+        MPa = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-6))
+        fig = plt.figure(figsize=(3,3), dpi=150)
+        ax = plt.axes()
+        ax.plot(strength, strength_z)
+        ax.fill_betweenx(strength_z, strength_fill_competent, 0, linewidth=0,
+                         alpha=0.2, label='Competent layer')
+        #ax.legend(loc='lower left', bbox_to_anchor=(1,0.8))
+        ax.legend()
+        ax.xaxis.set_major_formatter(MPa)
+        ax.yaxis.set_major_formatter(km)
+        if mode == 'compression':
+            ax.set_xlim(left=0)
+        else:
+            ax.set_xlim(right=0)
+        ax.set_ylim(ymin, ymax)
+        ax.annotate('Te = '+str(np.round(eff_Te/1000,1))+' km',
+                    xy=(1,0), xycoords='axes fraction',
+                    horizontalalignment='right', verticalalignment='bottom')
+        ax.set_title('x = '+str(x)+', y = '+str(y))
+        ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
+        ax.set_ylabel('Elevation / km')
+        fig.show()
 
     def set_rheology(self, strain_rate, rheologies, bodies):
         """
