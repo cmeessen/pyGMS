@@ -1192,14 +1192,13 @@ class GMS:
 
     def plot_topography(self, ax=None):
         if ax is None:
-            import matplotlib.pyplot as plt
-        else:
-            plt = ax
+            ax = plt.axes()
+            ax.set_aspect('equal')
         zmin = np.abs(self.layers[0].z.min())
         zmax = np.abs(self.layers[0].z.max())
         vmin = -1*max(zmin, zmax)
         vmax = max(zmin, zmax)
-        return plt.tricontourf(self.layers[0].triangulation, self.layers[0].z,
+        return ax.tricontourf(self.layers[0].triangulation, self.layers[0].z,
                                cmap=afrikakarte(), vmin=vmin, vmax=vmax)
 
     def plot_profile(self, x0, y0, x1, y1, var='T', num=100, ax=None,
@@ -1306,6 +1305,9 @@ class GMS:
             Lithostatic pressure criterion betwen 0 and 1.
         grad_crit : float
             Diff. stress gradient criterion in MPa/km.
+        title : str
+            The title of the plot, if None will plot the x,y coordinates
+        ax : matplotlib.axes instance
         """
         if isinstance(loc, Well):
             well = loc
@@ -1314,6 +1316,9 @@ class GMS:
         elif isinstance(loc, tuple) or isinstance(loc, list):
             x, y = loc
             well = self.get_well(x, y, var='T')
+
+        title = title or 'x = '+str(x)+', y = '+str(y)
+
         ymax = well.z[0]
         ymin = well.z[-1]
         results = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
@@ -1328,8 +1333,12 @@ class GMS:
 
         km = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-3))
         MPa = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-6))
-        fig = plt.figure(figsize=(3,3), dpi=150)
-        ax = plt.axes()
+
+        ax_new = False
+        if ax is None:
+            ax_new = True
+            fig = plt.figure(figsize=(3,3), dpi=150)
+        ax = ax or plt.axes()
         ax.plot(strength, strength_z)
         ax.fill_betweenx(strength_z, strength_fill_competent, 0, linewidth=0,
                          alpha=0.2, label='Competent layer')
@@ -1345,12 +1354,12 @@ class GMS:
         ax.annotate('Te = '+str(np.round(eff_Te/1000,1))+' km',
                     xy=(1,0), xycoords='axes fraction',
                     horizontalalignment='right', verticalalignment='bottom')
-        ax.set_title('x = '+str(x)+', y = '+str(y))
-        ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
-        ax.set_ylabel('Elevation / km')
-        fig.show()
+        ax.set_title(title)
+        if ax_new:
+            ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
+            ax.set_ylabel('Elevation / km')
 
-    def set_rheology(self, strain_rate, rheologies, bodies):
+    def set_rheology(self, strain_rate=None, rheologies=None, bodies=None):
         """
         Define the rheological parameters.
 
@@ -1386,43 +1395,47 @@ class GMS:
             bodies = {'LayerName1':'diorite_dry', 'LayerName2:'olivine_dry'}
         """
         #  Assign strain rate and body materials
-        self.strain_rate = strain_rate
-        self.body_materials = OrderedDict()
-        # Assign the materials to the layers
-        for layer_name in bodies.keys():
-            material = bodies[layer_name]
-            i=0
-            for id in self.layer_dict.keys():
-                name = self.layer_dict[id].split('_')[0]
-                if name == layer_name:
-                    self.body_materials[i] = material
-                i+=1
-        # Define the material properties
-        n_rocks = len(rheologies)
-        dtypes = [('name', object),
-                  # Beyerlees properties
-                  ('f_f_c', float), ('f_f_e', float), ('f_p', float),
-                  ('rho_b', float),
-                  # Dislocation creep parameter
-                  ('a_p', float), ('n', float), ('q_p', float),
-                  # Diffusion creep parameters
-                  ('a_f', float), ('q_f', float), ('d', float), ('m', float),
-                  # Dorns law parameters
-                  ('sigma_d', float), ('q_d', float), ('a_d', float),
-                  # Metadata
-                  ('source', object), ('via', object), ('altname', object)]
-        # Make a list of props for later usages
-        props = []
-        for d in dtypes:
-            props.append(d[0])
-        self.materials_db = np.zeros([n_rocks], dtype=dtypes)
-        i = 0
-        # Store all materials that are given, not only those in _body_rheology
-        for entry in rheologies:
-            for key in entry.keys():
-                if key in props:
-                    self.materials_db[key][i] = entry[key]
-            i += 1
+        if strain_rate:
+            self.strain_rate = strain_rate
+        if bodies:
+            self.body_materials = OrderedDict()
+            # Assign the materials to the layers
+            for layer_name in bodies.keys():
+                material = bodies[layer_name]
+                i=0
+                for id in self.layer_dict.keys():
+                    name = self.layer_dict[id].split('_')[0]
+                    if name == layer_name:
+                        self.body_materials[i] = material
+                    i+=1
+        if rheologies:
+            # Define the material properties
+            n_rocks = len(rheologies)
+            dtypes = [('name', object),
+                      # Beyerlees properties
+                      ('f_f_c', float), ('f_f_e', float), ('f_p', float),
+                      ('rho_b', float),
+                      # Dislocation creep parameter
+                      ('a_p', float), ('n', float), ('q_p', float),
+                      # Diffusion creep parameters
+                      ('a_f', float), ('q_f', float), ('d', float),
+                      ('m', float),
+                      # Dorns law parameters
+                      ('sigma_d', float), ('q_d', float), ('a_d', float),
+                      # Metadata
+                      ('source', object), ('via', object), ('altname', object)]
+            # Make a list of props for later usages
+            props = []
+            for d in dtypes:
+                props.append(d[0])
+            self.materials_db = np.zeros([n_rocks], dtype=dtypes)
+            i = 0
+            # Store all materials that are given, not only those in _body_rheology
+            for entry in rheologies:
+                for key in entry.keys():
+                    if key in props:
+                        self.materials_db[key][i] = entry[key]
+                i += 1
 
 
 def read_args():
