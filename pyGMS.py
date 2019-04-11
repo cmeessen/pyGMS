@@ -734,7 +734,7 @@ class GMS:
         result[:,2] = np.asarray(eff_Te)
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
-    def compute_yse(self, well, mode='compressiong', nz=500, strain_rate=None,
+    def compute_yse(self, well, mode='compression', nz=500, strain_rate=None,
                     plitho_crit=0.01, grad_crit=10.0, return_params=None):
         """
         Compute the yield strength envelope for a specific mode at a well
@@ -1286,7 +1286,7 @@ class GMS:
             return plt.tricontour(t, v, **kwds)
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
-                 plitho_crit=0.01, grad_crit=10.0):
+                 plitho_crit=0.01, grad_crit=10.0, title=None):
         """
         Plot a yield strength envelope for the given mode at the specified
         location `loc`.
