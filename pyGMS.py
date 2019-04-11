@@ -879,7 +879,7 @@ class GMS:
         -------
         Well instance
         """
-        if (x, y) not in self.wells:
+        if (x, y, var) not in self.wells:
             values = []
             i = 0
             for layer in self.layers:
@@ -896,8 +896,8 @@ class GMS:
                     i += 1
                 well.add_var(var, np.asarray(values))
             if store:
-                self.wells[(x, y)] = well
-        return self.wells[(x, y)]
+                self.wells[(x, y, var)] = well
+        return self.wells[(x, y, var)]
 
     def read_header(self):
         self._v_('Reading headers')
