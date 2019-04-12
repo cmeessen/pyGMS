@@ -628,7 +628,11 @@ class GMS:
         else:
             s_creep = np.nan
 
-        return min([s_byerlee, s_creep, s_diff])
+        min_sigma = min([s_byerlee, s_creep, s_diff])
+        factor = 1
+        if mode == 'compression':
+            factor = -1
+        return factor*min_sigma
 
     def compute_surface_heat_flow(self, return_tcond=False, spacing=None,
                                   force=False):
@@ -839,6 +843,7 @@ class GMS:
             h_mech = h_mechs[0]
 
         results['n_layers'] = len(h_mechs)
+        results['layer_ids'] = lay_ids
         results['dsigma_max'] = dsigma_max
         results['z'] = zs
         results['Te'] = h_mech
@@ -1286,7 +1291,10 @@ class GMS:
             return plt.tricontour(t, v, **kwds)
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
-                 plitho_crit=0.01, grad_crit=10.0, title=None):
+                 plitho_crit=0.01, grad_crit=10.0, title=None, ax=None,
+                 plot_bodies=False, body_cmap=None, body_names=None,
+                 label_competent='Competent layer', label_envelope=None,
+                 leg_kwds=None, **kwds):
         """
         Plot a yield strength envelope for the given mode at the specified
         location `loc`.
@@ -1309,16 +1317,35 @@ class GMS:
         title : str
             The title of the plot, if None will plot the x,y coordinates
         ax : matplotlib.axes instance
+
+        Keyword arguments
+        -----------------
+        show_Te : bool
+            Display the computed effective elastic thickness
+        show_title : bool
         """
-        if isinstance(loc, Well):
+
+        #if isinstance(loc, Well): <-- this didnt work
+        if type(loc).__name__ == 'Well':
             well = loc
             x = well.x
             y = well.y
         elif isinstance(loc, tuple) or isinstance(loc, list):
             x, y = loc
             well = self.get_well(x, y, var='T')
+        else:
+            msg = 'Unknown location', loc
+            raise ValueError(msg)
 
-        title = title or 'x = '+str(x)+', y = '+str(y)
+        show_title = True
+        show_Te = True
+        left_lim = 0
+        right_lim = 0
+
+        if 'show_title' in kwds:
+            show_title = kwds['show_title']
+        if 'show_Te' in kwds:
+            show_Te = kwds['show_Te']
 
         ymax = well.z[0]
         ymin = well.z[-1]
@@ -1340,22 +1367,60 @@ class GMS:
             ax_new = True
             fig = plt.figure(figsize=(3,3), dpi=150)
         ax = ax or plt.axes()
-        ax.plot(strength, strength_z)
+
+        ax.plot(strength, strength_z, label=label_envelope)
         ax.fill_betweenx(strength_z, strength_fill_competent, 0, linewidth=0,
-                         alpha=0.2, label='Competent layer')
-        #ax.legend(loc='lower left', bbox_to_anchor=(1,0.8))
-        ax.legend()
+                         alpha=0.2, label=label_competent)
+
+        if plot_bodies:
+            if body_cmap is None:
+                body_cmap = plt.get_cmap('Set2')
+            column_width = 0.2*(strength.max() - strength.min())
+            print('Column width', column_width)
+            layer_ids = results['layer_ids']
+            unique_ids = list(self.layer_dict_unique.keys())
+            if body_names is None:
+                body_names = [self.layer_dict_unique[i] for i in unique_ids]
+            for i in range(len(unique_ids) - 1):
+                this_id = unique_ids[i]
+                next_id = unique_ids[i + 1]
+                xcoords = np.zeros_like(layer_ids, dtype=float)
+                condition = (layer_ids >= this_id) & (layer_ids < next_id)
+                if not condition.any():
+                    # skip if this body doesn't exist
+                    continue
+                xcoords[condition] += column_width
+                body_color = body_cmap.colors[i]
+                ax.fill_betweenx(strength_z, xcoords, 0, linewidth=0.5,
+                                 facecolor=body_color, edgecolor='black',
+                                 label=body_names[i], zorder=-1)
+            if mode == 'compression':
+                right_lim = column_width
+            else:
+                left_lim = column_width
+
+        if label_competent or label_envelope or plot_bodies:
+            if leg_kwds is None:
+                leg_kwds = dict()
+            ax.legend(**leg_kwds)
         ax.xaxis.set_major_formatter(MPa)
         ax.yaxis.set_major_formatter(km)
+
         if mode == 'compression':
-            ax.set_xlim(left=0)
+            ax.set_xlim(right=right_lim)
         else:
-            ax.set_xlim(right=0)
+            ax.set_xlim(left=left_lim)
         ax.set_ylim(ymin, ymax)
-        ax.annotate('Te = '+str(np.round(eff_Te/1000,1))+' km',
-                    xy=(1,0), xycoords='axes fraction',
-                    horizontalalignment='right', verticalalignment='bottom')
-        ax.set_title(title)
+
+        if show_Te:
+            ax.annotate('Te = '+str(np.round(eff_Te/1000,1))+' km',
+                        xy=(1,0), xycoords='axes fraction',
+                        horizontalalignment='right', verticalalignment='bottom')
+
+        if show_title:
+            title = title or 'x = '+str(x)+', y = '+str(y)
+            ax.set_title(title)
+
         if ax_new:
             ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
             ax.set_ylabel('Elevation / km')
