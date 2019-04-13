@@ -557,13 +557,11 @@ class GMS:
         q_d = material['q_d'][0]
         a_d = material['a_d'][0]
         if q_d == 0 or a_d == 0:
-            print(q_d,a_d)
-            print (material)
-            raise ValueError('q_d, a_d is zero')
+            return np.nan
         return sigma_d*(1.0 - np.sqrt(-1.0*R*temp/q_d*np.log(strain_rate/a_d)))
 
     def sigma_d(self, material, z, temp, strain_rate=None,
-                compute=None, mode=None):
+                compute=None, mode=None, output=None):
         """
         Computes differential stress for a material at given depth, temperature
         and strain rate. Returns the minimum of Byerlee's law, dislocation creep
@@ -585,11 +583,16 @@ class GMS:
             Default is ['dislocation', 'dorn'].
         mode : str
             'compression' or 'extension'
+        output : list of str
+            Decide which diff. stress output should be retrieved. Can be either
+            of `compute`.
 
         Returns
         -------
-        Sigma : float
-            Differential stress in Pa
+        out : dict
+            Dictionary with the computed parameters. If `output` is `None`,
+            will only contain key `dsigma_max`. Parameters of `output` will be
+            added as keys to out.
         """
         # TODO: looping through each datapoint is inefficient. This should
         #  be implemented to work with numpy arrays
@@ -600,13 +603,12 @@ class GMS:
         else:
             e_prime = strain_rate
 
-        compute_default = ['dislocation', 'dorn']
+        compute_processes = ['dislocation', 'diffusion', 'dorn']
         if compute is None:
-            compute = compute_default
+            compute = ['dislocation', 'dorn']
         else:
-            # Check the keywords
             for kwd in compute:
-                if kwd not in compute_default:
+                if kwd not in compute_processes:
                     raise ValueError('Unknown compute keyword', kwd)
 
         s_byerlee = self.sigma_byerlee(material, z, mode)
@@ -632,7 +634,23 @@ class GMS:
         factor = 1
         if mode == 'compression':
             factor = -1
-        return factor*min_sigma
+
+
+        out = dict()
+        out['dsigma_max'] = min_sigma*factor
+
+        if output is not None:
+            if 'byerlee' in output:
+                out['byerlee'] = s_byerlee*factor
+            if 'dislocation' in output:
+                val = self.sigma_dislocation(material, temp, e_prime)
+                out['dislocation'] = val*factor
+            if 'dorn' in output:
+                out['dorn'] = self.sigma_dorn(material, temp, e_prime)*factor
+            if 'diffusion' in output:
+                out['diffusion'] = s_diff*factor
+
+        return out
 
     def compute_surface_heat_flow(self, return_tcond=False, spacing=None,
                                   force=False):
@@ -739,7 +757,8 @@ class GMS:
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
     def compute_yse(self, well, mode='compression', nz=500, strain_rate=None,
-                    plitho_crit=0.01, grad_crit=10.0, return_params=None):
+                    plitho_crit=0.01, grad_crit=10.0, return_params=None,
+                    compute=None):
         """
         Compute the yield strength envelope for a specific mode at a well
         instance. Also computes the effect elastic thickness after Burov and
@@ -764,21 +783,38 @@ class GMS:
             Diff. stress gradient criterion in MPa/km.
         return_params : list
             List additional parameters that should be returned with result
+                - `is_competent` : return bool array where layers are competent
+                - `diffusion`    : returns diff. stress for diffusion at all
+                                   depths
+                - `dislocation`  : returns stress for dislocation at all depths
+                - `dorn`         : returns stress for Dorn's law at all depths
 
         Returns
         -------
         results : dict
             Dictionary containing keys
-                - `dsigma_max`: the yield strength envelope
-                - `Te`        : the computed effective elastic thickness
-                - `n_layers`  : the number of decoupled layers according to the
-                                criteria
+                - `dsigma_max` : the yield strength envelope
+                - `Te`         : the computed effective elastic thickness
+                - `n_layers`   : the number of decoupled layers according to the
+                                 criteria
         """
-        return_params = [] or return_params
-        if return_params is None:
-            return_params = list()
-        strain_rate = strain_rate or self.strain_rate
         results = dict()
+        output = []
+        return_params = return_params or []
+        return_vals = ['is_competent']
+        output_vals = ['byerlee', 'dislocation', 'diffusion', 'dorn']
+        for param in return_params:
+            if param in output_vals:
+                output.append(param)
+                results[param] = []
+            elif param in return_vals:
+                continue
+            else:
+                msg = 'Unknown return parameter', param
+                raise ValueError(msg)
+        output = None if len(output) == 0 else output
+        strain_rate = strain_rate or self.strain_rate
+
         zs, T, lay_ids = well.get_interpolated_var(nz, 'T')
         ztopo = zs[0]
         dsigma_max = []
@@ -788,15 +824,23 @@ class GMS:
             mat_name = self.body_materials[lay_id]
             material = self.materials_db[self.materials_db['name'] == mat_name]
             T_K = temp + 273.15
-            dsigma = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
-                                  strain_rate=strain_rate, mode=mode)
-            dsigma_max.append(dsigma)    # Unit: Pa
+            sigma_d = self.sigma_d(material=material, z=ztopo-z, temp=T_K,
+                                  strain_rate=strain_rate, mode=mode,
+                                  compute=compute, output=output)
+            dsigma_max.append(sigma_d['dsigma_max'])    # Unit: Pa
             incr_thickness = z_prev - z
             if incr_thickness > 0:
                 dPlitho = material['rho_b'][0]*9.81*incr_thickness
                 P_litho.append(P_litho[-1] + dPlitho)
             z_prev = z
+            if output is not None:
+                for param in output:
+                    results[param].append(sigma_d[param])
+
         dsigma_max = np.asarray(dsigma_max)
+        if output is not None:
+            for param in output:
+                results[param] = np.asarray(results[param])
 
         # Compute the mechanical thickness of each layer
         strength = np.abs(np.asarray(dsigma_max))
@@ -1297,7 +1341,7 @@ class GMS:
                  strength_unit='GPa', depth_unit='km', plot_bodies=False,
                  body_cmap=None, body_names=None, fill_mode='envelope',
                  label_competent='Competent layer', label_envelope=None,
-                 leg_kwds=None, **kwds):
+                 leg_kwds=None, compute=None, plot_all_sigma=False, **kwds):
         """ Plot a yield strength envelope of a well or an x,y coordinate.
 
         Plot a yield strength envelope for the given mode at the specified
@@ -1347,6 +1391,12 @@ class GMS:
             Label for the line of the envelope, optional
         leg_kwds : dict
             Keywords that will be passed to ax.legend()
+        compute : list of str, optional
+            The processes which should be considered when computing the brittle
+            YSE. Can be `diffusion`, `dislocation` and `dorn`. By default will
+            use `[dislocation', 'dorn']`.
+        plot_all_sigma : bool
+            Will plot all diff. stresses for all processes defined in `compute`.
 
         Keyword arguments
         -----------------
@@ -1355,6 +1405,14 @@ class GMS:
         show_title : bool
             Show the title or not
         """
+        show_title = True
+        show_Te = True
+        left_lim = 0
+        right_lim = 0
+        strength_units = {'GPa':1e-9, 'MPa':1e-6}
+        depth_units = {'km':1e-3, 'm':1}
+        return_params = ['is_competent']
+        plot_processes = None
 
         #if isinstance(loc, Well): <-- this didnt work
         if type(loc).__name__ == 'Well':
@@ -1367,29 +1425,31 @@ class GMS:
         else:
             msg = 'Unknown location', loc
             raise ValueError(msg)
-
-        show_title = True
-        show_Te = True
-        left_lim = 0
-        right_lim = 0
-        strength_units = {'GPa':1e-9, 'MPa':1e-6}
-        depth_units = {'km':1e-3, 'm':1}
-
+        if plot_all_sigma:
+            return_params.append('byerlee')
+            plot_processes = ['byerlee']
+            if compute is None:
+                plot_processes.extend(['dislocation', 'dorn'])
+                return_params.extend(['dislocation', 'dorn'])
+            else:
+                plot_processes.extend(compute)
+                return_params.extend(compute)
         if 'show_title' in kwds:
             show_title = kwds['show_title']
         if 'show_Te' in kwds:
             show_Te = kwds['show_Te']
 
-
         ymax = well.z[0]
         ymin = well.z[-1]
         results = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
-                                   grad_crit, return_params=['is_competent'])
+                                   grad_crit, compute=compute,
+                                   return_params=return_params)
         strength = results['dsigma_max']
         strength_z = results['z']
         is_competent = results['is_competent']
         eff_Te = results['Te']
 
+        x_fill = None
         if fill_mode == 'envelope':
             x_fill = np.ma.masked_where(np.invert(is_competent), strength)
         elif fill_mode == 'box':
@@ -1406,8 +1466,13 @@ class GMS:
 
         ax.plot(strength, strength_z, label=label_envelope,
                 solid_joinstyle='miter')
-        ax.fill_betweenx(strength_z, x_fill, 0, linewidth=0, alpha=0.2,
-                         label=label_competent)
+        if x_fill is not None:
+            ax.fill_betweenx(strength_z, x_fill, 0, linewidth=0, alpha=0.2,
+                             label=label_competent)
+        if plot_all_sigma:
+            for process in plot_processes:
+                _val = results[process]
+                ax.plot(_val, strength_z, label=process, lw=1, ls='--')
 
         if plot_bodies:
             if body_cmap is None:
