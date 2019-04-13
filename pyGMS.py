@@ -1003,7 +1003,7 @@ class GMS:
         plt.ylim(self.ylim)
 
     def plot_layer_bounds(self, x0, y0, x1, y1, num=100, lc='black', lw=1,
-                          unit='m', only='unique', ax=None, xaxis='dist',
+                          unit='km', only='unique', ax=None, xaxis='dist',
                           **kwds):
         """
         Plot the layer tops as lines along the given profile. By default only
@@ -1056,10 +1056,7 @@ class GMS:
         else:
             layer_d = self.layer_dict
 
-        if ax is None:
-            import matplotlib.pyplot as plt
-        else:
-            plt = ax
+        ax = ax or plt.axes()
 
         px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
         if xaxis == 'dist':
@@ -1077,12 +1074,12 @@ class GMS:
             for x, y in zip(px, py):
                 z.append(layer(x, y))
             z = np.asarray(z)*scale
-            plt.plot(d, z, color=lc, lw=lw, **kwds)
+            ax.plot(d, z, color=lc, lw=lw, **kwds)
 
     def plot_strength_profile(self, x0, y0, x1, y1, strain_rate=None, num=1000,
                               num_vert=100, xaxis='dist', unit='km',
                               mode='compression', levels=50, force=False,
-                              ax=None, dsigma='Pa'):
+                              ax=None, dsigma='Pa', cmap=None):
         """
         Compute the strength for the given strain rate along an arbitrary
         profile.
@@ -1114,22 +1111,30 @@ class GMS:
         -------
         mappable
         """
+        ax = ax or plt.axes()
         if unit == 'km':
             scale = 0.001
         elif unit == 'm':
             scale = 1.0
         else:
-            raise ValueError('Unknown unit', unit)
-        if ax is None:
-            import matplotlib.pyplot as plt
-        else:
-            plt = ax
+            msg = 'Unknown unit', unit
+            raise ValueError(msg)
         if dsigma == 'GPa':
             dsigma_scale = 1e-9
         elif dsigma == 'MPa':
             dsigma_scale = 1e-6
         elif dsigma == 'Pa':
             dsigma_scale = 1
+        else:
+            msg = 'Unknown unit for dsigma:', dsigma
+            raise ValueError(msg)
+        if isinstance(cmap, str):
+            cmap = plt.cm.get_cmap(cmap)
+        else:
+            cmap = cmap or plt.cm.get_cmap('viridis')
+        if mode == 'compression':
+            print('Inverse colormap')
+            cmap = mpl.colors.ListedColormap(cmap.colors[::-1])
         # Make the points where to sample the model
         px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
         if xaxis == 'dist':
@@ -1191,10 +1196,7 @@ class GMS:
         if isinstance(levels, int):
             levels = np.linspace(min(strength), max(strength), levels)
 
-        return plt.tricontourf(t, strength, levels=levels)
-
-
-
+        return ax.tricontourf(t, strength, levels=levels, cmap=cmap)
 
     def plot_topography(self, ax=None):
         if ax is None:
@@ -1292,37 +1294,66 @@ class GMS:
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
                  plitho_crit=0.01, grad_crit=10.0, title=None, ax=None,
-                 plot_bodies=False, body_cmap=None, body_names=None,
+                 strength_unit='GPa', depth_unit='km', plot_bodies=False,
+                 body_cmap=None, body_names=None, fill_mode='envelope',
                  label_competent='Competent layer', label_envelope=None,
                  leg_kwds=None, **kwds):
-        """
+        """ Plot a yield strength envelope of a well or an x,y coordinate.
+
         Plot a yield strength envelope for the given mode at the specified
-        location `loc`.
+        location `loc`, which can either be a `Well` instance or a x, y
+        coordinate. Computes the envelope on the fly and offers ability to plot
+        competent layers, output effective elastic thickness or the lithology.
 
         Parameters
         ----------
         loc: Well, tuple, list
             Either a well instance, (x, y) or [x, y]
+        strain_rate : float
+            Strain rate in 1/s. If `None`, will use strain rate provided with
+            `set_rheology()`.
         mode : str
             `compression` or `extension`.
         nz : int
             The number of sampling points in depth.
-        strain_rate : float
-            Strain rate in 1/s. If `None`, will use strain rate provided with
-            `set_rheology()`.
         plitho_crit : float
             Lithostatic pressure criterion betwen 0 and 1.
         grad_crit : float
             Diff. stress gradient criterion in MPa/km.
-        title : str
+        title : str, optional
             The title of the plot, if None will plot the x,y coordinates
-        ax : matplotlib.axes instance
+        ax : matplotlib.axes instance, optional
+            The axis to plot into
+        strength_unit : str
+            `GPa`, `MPa` or `Pa`
+        depth_unit : str
+            `km` or `m`
+        plot_bodies : bool
+            If `True` will plot the lithologies next to the YSE.
+        body_cmap : str, matplotlib.colors.ListedColormap, optional
+            Either the name of a matplotlib colormap or a `ListedColormap`
+            instance. Will use `Set2` by default.
+        body_names : list of str
+            List of strings for the bodies in the model from top to bottom.
+            Needs to include all bodies, not only the ones that will appear in
+            the profile. If `None` the integrated names will be printed.
+        fill_mode : str, optional
+            `envelope` or `box` to mark the competent layers according to the
+            chosen `grad_crit` and `plitho_crit`. `envelope` fills the area
+            between the YSE and 0 Pa, `box` creates boxes.
+        lambel_competent : str, optional
+            The label that should be used to mark the filled area.
+        label_envelope : str
+            Label for the line of the envelope, optional
+        leg_kwds : dict
+            Keywords that will be passed to ax.legend()
 
         Keyword arguments
         -----------------
         show_Te : bool
             Display the computed effective elastic thickness
         show_title : bool
+            Show the title or not
         """
 
         #if isinstance(loc, Well): <-- this didnt work
@@ -1341,11 +1372,14 @@ class GMS:
         show_Te = True
         left_lim = 0
         right_lim = 0
+        strength_units = {'GPa':1e-9, 'MPa':1e-6}
+        depth_units = {'km':1e-3, 'm':1}
 
         if 'show_title' in kwds:
             show_title = kwds['show_title']
         if 'show_Te' in kwds:
             show_Te = kwds['show_Te']
+
 
         ymax = well.z[0]
         ymin = well.z[-1]
@@ -1356,11 +1390,13 @@ class GMS:
         is_competent = results['is_competent']
         eff_Te = results['Te']
 
-        strength_fill_competent = np.ma.masked_where(np.invert(is_competent),
-                                                     strength)
-
-        km = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-3))
-        MPa = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-6))
+        if fill_mode == 'envelope':
+            x_fill = np.ma.masked_where(np.invert(is_competent), strength)
+        elif fill_mode == 'box':
+            max_fill_x = 10*np.ones_like(strength)*np.abs(strength).max()
+            if mode == 'compression':
+                max_fill_x *= -1
+            x_fill = np.ma.masked_where(np.invert(is_competent), max_fill_x)
 
         ax_new = False
         if ax is None:
@@ -1368,15 +1404,15 @@ class GMS:
             fig = plt.figure(figsize=(3,3), dpi=150)
         ax = ax or plt.axes()
 
-        ax.plot(strength, strength_z, label=label_envelope)
-        ax.fill_betweenx(strength_z, strength_fill_competent, 0, linewidth=0,
-                         alpha=0.2, label=label_competent)
+        ax.plot(strength, strength_z, label=label_envelope,
+                solid_joinstyle='miter')
+        ax.fill_betweenx(strength_z, x_fill, 0, linewidth=0, alpha=0.2,
+                         label=label_competent)
 
         if plot_bodies:
             if body_cmap is None:
                 body_cmap = plt.get_cmap('Set2')
             column_width = 0.2*(strength.max() - strength.min())
-            print('Column width', column_width)
             layer_ids = results['layer_ids']
             unique_ids = list(self.layer_dict_unique.keys())
             if body_names is None:
@@ -1384,11 +1420,11 @@ class GMS:
             for i in range(len(unique_ids) - 1):
                 this_id = unique_ids[i]
                 next_id = unique_ids[i + 1]
-                xcoords = np.zeros_like(layer_ids, dtype=float)
                 condition = (layer_ids >= this_id) & (layer_ids < next_id)
                 if not condition.any():
-                    # skip if this body doesn't exist
+                    # skip if this body doesn't exist in the plot
                     continue
+                xcoords = np.zeros_like(layer_ids, dtype=float)
                 xcoords[condition] += column_width
                 body_color = body_cmap.colors[i]
                 ax.fill_betweenx(strength_z, xcoords, 0, linewidth=0.5,
@@ -1403,13 +1439,19 @@ class GMS:
             if leg_kwds is None:
                 leg_kwds = dict()
             ax.legend(**leg_kwds)
-        ax.xaxis.set_major_formatter(MPa)
-        ax.yaxis.set_major_formatter(km)
+
+        _ = depth_units[depth_unit]
+        y_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
+        ax.yaxis.set_major_formatter(y_fmt)
+        _ = strength_units[strength_unit]
+        x_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
+        ax.xaxis.set_major_formatter(x_fmt)
 
         if mode == 'compression':
-            ax.set_xlim(right=right_lim)
+            left_lim = 1.1*strength.min()
         else:
-            ax.set_xlim(left=left_lim)
+            right_lim = 1.1*strength.max()
+        ax.set_xlim(left=left_lim, right=right_lim)
         ax.set_ylim(ymin, ymax)
 
         if show_Te:
