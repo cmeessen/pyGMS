@@ -270,6 +270,8 @@ class GMS:
 
     # TODO: Make a Material class which contains all relevant data
     # TODO: Make a Body class
+    # TODO: Plotting uses different ways to handle unit scaling. Rewrite the
+    #  methods in a way that they use mpl.ticker.FuncFormatter (see plot_yse)
 
     def __init__(self, filename, triangulate=True, verbosity=0):
         self.gms_fem = filename
@@ -743,10 +745,11 @@ class GMS:
         print('> Lithostatic pressure limit:', plitho_crit*100,'% of Plitho')
         n = show_progress()
         nmax = xgrid.flatten().shape[0]
+        yse_return = ['is_competent']
         for x, y in zip(xgrid.flatten(), ygrid.flatten()):
             well = self.get_well(x, y, var='T')
             result = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
-                                      grad_crit)
+                                      grad_crit, return_params=yse_return)
             competent_layers.append(result['n_layers'])
             eff_Te.append(result['Te'])
             n = show_progress(n, nmax)
@@ -842,58 +845,60 @@ class GMS:
             for param in output:
                 results[param] = np.asarray(results[param])
 
-        # Compute the mechanical thickness of each layer
-        strength = np.abs(np.asarray(dsigma_max))
-        grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
-        P_mech = np.asarray(P_litho)*plitho_crit
-        # Use simplification by Burov and Diament (1995), p. 3915
-        # Get a bool array, where layers are mechanical with respect to PLitho
-        is_competent_P = strength >= P_mech
-        # Bool array where layers are mechanical with respect to gradient
-        is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
-        is_competent = np.logical_and(is_competent_P, is_competent_grad)
+        if 'is_competent' in return_params:
+            # Compute the mechanical thickness of each layer
+            strength = np.abs(np.asarray(dsigma_max))
+            grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
+            P_mech = np.asarray(P_litho)*plitho_crit
+            # Use simplification by Burov and Diament (1995), p. 3915
+            # Get a bool array, where layers are mechanical with respect to PLitho
+            is_competent_P = strength >= P_mech
+            # Bool array where layers are mechanical with respect to gradient
+            is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
+            is_competent = np.logical_and(is_competent_P, is_competent_grad)
 
-        # Detect the individual mechanical thicknesses
-        z_layer_top = ztopo
-        h_mechs = []
-        wait_for_next_layer = False
-        delta_z = zs[0] - zs[1]
-        for i in range(is_competent.shape[0]):
-            is_weak = is_competent[i] == False
-            was_strong_before = is_competent[i-1] == True
-            if i+1 == is_competent.shape[0]:
-                is_continuous = True
+            # Detect the individual mechanical thicknesses
+            z_layer_top = ztopo
+            h_mechs = []
+            competent_depths = []
+            wait_for_next_layer = False
+            delta_z = zs[0] - zs[1]
+            for i in range(is_competent.shape[0]):
+                is_weak = is_competent[i] == False
+                was_strong_before = is_competent[i-1] == True
+                if i+1 == is_competent.shape[0]:
+                    is_continuous = True
+                else:
+                    # Check whether the following point is also not competent
+                    # required because gradient can be false at layer boundaries
+                    is_continuous = is_competent[i+1] == False
+                if wait_for_next_layer and not is_weak:
+                    wait_for_next_layer = False
+                    z_layer_top = zs[i]
+                if is_weak & is_continuous & was_strong_before:
+                    h = z_layer_top - zs[i]
+                    # Do not add if only one point is competent
+                    if h >= 2*delta_z:
+                        h_mechs.append(h)
+                        competent_depths.extend([z_layer_top, zs[i]])
+                    wait_for_next_layer = True
+
+            if len(h_mechs) > 1:
+                # In case of multiple h_mechs, i.e. when decoupled layers exist
+                h_mech = 0
+                for h in h_mechs:
+                    h_mech += h**3
+                h_mech = h_mech**(1.0/3.0)
             else:
-                # Check whether the following point is also not competent
-                # required because gradient can be false at layer boundaries
-                is_continuous = is_competent[i+1] == False
-            if wait_for_next_layer and not is_weak:
-                wait_for_next_layer = False
-                z_layer_top = zs[i]
-            if is_weak & is_continuous & was_strong_before:
-                h = z_layer_top - zs[i]
-                # Do not add if only one point is competent
-                if h >= 2*delta_z:
-                    h_mechs.append(h)
-                wait_for_next_layer = True
+                h_mech = h_mechs[0]
+            results['Te'] = h_mech
+            results['n_layers'] = len(h_mechs)
+            results['is_competent'] = is_competent
+            results['competent_depths'] = competent_depths
 
-        if len(h_mechs) > 1:
-            # In case of multiple h_mechs, i.e. when decoupled layers exist
-            h_mech = 0
-            for h in h_mechs:
-                h_mech += h**3
-            h_mech = h_mech**(1.0/3.0)
-        else:
-            h_mech = h_mechs[0]
-
-        results['n_layers'] = len(h_mechs)
         results['layer_ids'] = lay_ids
         results['dsigma_max'] = dsigma_max
         results['z'] = zs
-        results['Te'] = h_mech
-
-        if 'is_competent' in return_params:
-            results['is_competent'] = is_competent
 
         return results
 
@@ -1048,7 +1053,7 @@ class GMS:
 
     def plot_layer_bounds(self, x0, y0, x1, y1, num=100, lc='black', lw=1,
                           unit='km', only='unique', ax=None, xaxis='dist',
-                          **kwds):
+                          cmap=None, fill_kwds=None, **kwds):
         """
         Plot the layer tops as lines along the given profile. By default only
         plots unqiue layers, i.e. not the refined layers. Use `only_unique` to
@@ -1070,22 +1075,21 @@ class GMS:
             Define which layers should be plotted. `unique` does not plot the
             refinements, `all` plots all layers incl. refinements, stating an
             int or list of int will plot the layers with the given ids.
-        ax : matplotlib.axes
+        ax : matplotlib.axes, optional
             The axes to plot into
         xaxis : str
             The coordinate to show along the horizontal axis in the plot. Can
             be 'dist' (starts at 0), 'x' or 'y'.
         lay_id : None, int or list
             If stated will only plot layers with the given id(s).
+        cmap : colormap, optional
+            If given will fill the bodys
         ** kwds
             Keywords going to matplotlib.pyplot.plot
         """
-        if unit == 'm':
-            scale = 1
-        elif unit == 'km':
-            scale = 0.001
-        else:
-            raise ValueError('Unknown unit', unit)
+        length_units = {'km':1e-3, 'm':1}
+        _ = length_units[unit]
+        len_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
 
         if only == 'unique':
             layer_d = self.layer_dict_unique
@@ -1101,30 +1105,57 @@ class GMS:
             layer_d = self.layer_dict
 
         ax = ax or plt.axes()
+        ax.yaxis.set_major_formatter(len_fmt)
+        ax.xaxis.set_major_formatter(len_fmt)
 
-        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
+        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale=1)
         if xaxis == 'dist':
             d = dist
         elif xaxis == 'x':
-            d = px*scale
+            d = px
         elif xaxis == 'y':
-            d = py*scale
+            d = py
         else:
             raise ValueError('Unknown xaxis', xaxis)
 
+        if cmap is not None:
+            if isinstance(cmap, str):
+                cmap = plt.get_cmap(cmap)
+            zmin = self.zlim[0]
+            if fill_kwds is None:
+                fill_kwds = dict()
+
+        j = 0
         for i in list(layer_d.keys()):
             layer = self.layers[i]  # type: Layer
             z = []
             for x, y in zip(px, py):
                 z.append(layer(x, y))
-            z = np.asarray(z)*scale
+            z = np.asarray(z)
+            if cmap is not None:
+                color = cmap.colors[j]
+                zmin = []
+                if i < list(
+                    layer_d.keys())[-1]:
+                    next_layer = self.layers[list(layer_d.keys())[j+1]]
+                    for x, y in zip(px, py):
+                        zmin.append(next_layer(x, y))
+                else:
+                    zmin = self.zlim[0]
+                ax.fill_between(d, z, zmin, facecolor=color, linewidth=0,
+                                **fill_kwds)
+                j += 1
             ax.plot(d, z, color=lc, lw=lw, **kwds)
 
-    def plot_strength_profile(self, x0, y0, x1, y1, strain_rate=None, num=1000,
-                              num_vert=100, xaxis='dist', unit='km',
-                              mode='compression', levels=50, force=False,
-                              ax=None, dsigma='Pa', cmap=None):
-        """
+    def plot_strength_profile(self, x0, y0, x1, y1, num=1000, num_vert=100,
+                              mode='compression', compute=None,
+                              strain_rate=None,  force=False,
+                              show_competent=False, competent_kwds=None,
+                              plitho_crit=0.01, grad_crit=10,
+                              ax=None, xaxis='dist', unit='km', dsigma='Pa',
+                              levels=50, cmap=None):
+        """ Compute and plot an arbitrary yield strength profile
+
         Compute the strength for the given strain rate along an arbitrary
         profile.
 
@@ -1138,31 +1169,46 @@ class GMS:
             Number of sampling points in horizontal direction
         num_vert : int
             Number of sampling points in vertical direction
-        xaxis : str
-        unit : str
-            Unit of length, `km` or `m`
         mode : str
             'compression' or 'extension'
+        compute : list of str, optional
+        strain_rate : float, optional
+        force : bool
+            If 'True` will force the new computation of the strength
+        show_competent : bool
+            Plot the tops and bases of the competent layers according to the
+            `plitho_crit` and `grad_crit`. Will re-compute strength even if
+            it has been computed and stored before. Details see compute_yse().
+        competent_kwds : dict, optional
+            Keywords that go straight to `ax.scatter()`
+        plitho_crit : float
+            Lithostatic pressure criterion betwen 0 and 1.
+        grad_crit : float
+            Diff. stress gradient criterion in MPa/km.
+        ax : matplotlib.axes
+            Axes object to plot onto. If `None` will use matplotlib.pyplot
+        xaxis : str
+            Which coordinates to display along the xaxis. `dist` for distance
+            along the profile, `x`, or `y`.
+        unit : str
+            Unit of length, `km` or `m`
+        dsigma : str
+            Unit of differential stress `GPa`, `MPa`, `Pa`
         levels : int or np.array
             If `int` defines the number of levels for the contour plot,
             if a 1D numpy array will use these levels as contour levels.
-        force : bool
-            If 'True` will force the new computation of the strength
-        ax : matplotlib.axes
-            Axes object to plot onto. If `None` will use matplotlib.pyplot
+        cmap : str, matplotlih colormap, optional
+            Colormap for differential stress plot. Will either load the colormap
+            with the given name or use the one handed over.
 
         Returns
         -------
         mappable
         """
-        ax = ax or plt.axes()
-        if unit == 'km':
-            scale = 0.001
-        elif unit == 'm':
-            scale = 1.0
-        else:
-            msg = 'Unknown unit', unit
-            raise ValueError(msg)
+        length_units = {'km':1e-3, 'm':1}
+        _ = length_units[unit]
+        len_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
+
         if dsigma == 'GPa':
             dsigma_scale = 1e-9
         elif dsigma == 'MPa':
@@ -1177,22 +1223,39 @@ class GMS:
         else:
             cmap = cmap or plt.cm.get_cmap('viridis')
         if mode == 'compression':
-            print('Inverse colormap')
             cmap = mpl.colors.ListedColormap(cmap.colors[::-1])
+
+        ax = ax or plt.axes()
+        ax.yaxis.set_major_formatter(len_fmt)
+        ax.xaxis.set_major_formatter(len_fmt)
+
         # Make the points where to sample the model
-        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
+        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale=1)
         if xaxis == 'dist':
             d = dist
         elif xaxis == 'x':
-            d = px * scale
+            d = px
         elif xaxis == 'y':
-            d = py * scale
+            d = py
         else:
             raise ValueError('Unknown xaxis', xaxis)
         d = d.tolist()
 
         if strain_rate is None:
             strain_rate = self.strain_rate
+
+        return_params = []
+        only_competent = False
+        competent_x = None
+        competent_y = None
+        competent_kwds = competent_kwds or dict()
+        if show_competent:
+            if show_competent == 'only':
+                only_competent = True
+            # force = True
+            competent_y = []
+            competent_x = []
+            return_params.append('is_competent')
 
         # Check whether Temperatures are loaded
         var = 'T'
@@ -1202,45 +1265,61 @@ class GMS:
         # Check if stored
         # TODO: This must be handled better, is missing rheology and
         #  coordinate system!
-        profile_stats = (x0, y0, x1, y1, strain_rate)
+        profile_stats = (x0, y0, x1, y1, strain_rate, show_competent)
         if profile_stats in self._strength_profiles.keys() and not force:
-            t, strength = self._strength_profiles[profile_stats]
+            t, strength, competent_x, competent_y = self._strength_profiles[profile_stats]
         else:
+            kwds_yse = {'mode':mode,
+                        'nz':num_vert,
+                        'strain_rate':strain_rate,
+                        'plitho_crit':plitho_crit,
+                        'grad_crit':grad_crit,
+                        'return_params':return_params,
+                        'compute':compute}
             # Obtain the wells
             depths = []
-            temps = []
-            topography = []
-            layer_ids = []
             strength = []
             profile_distance = []
             print('Computing strength')
             i = show_progress()
             imax = len(px)
             for x, y, p_dist in zip(px, py, d):
+                profile_distance.extend([p_dist]*num_vert)
                 well = self.get_well(x, y, var)  # type: Well
-                zs, T, lay_ids = well.get_interpolated_var(num_vert, var)
-                ztopo = zs[0]
-                topography.append(ztopo)
-                depths.extend(zs)
-                temps.extend(T)
-                layer_ids.extend(lay_ids)
-                for z, lay_id, temp in zip(zs, lay_ids, T):
-                    mat_name = self.body_materials[lay_id]
-                    material = self.materials_db[self.materials_db['name'] == mat_name]
-                    strength.append(self.sigma_d(material=material, z=ztopo-z,
-                                                 temp=temp+273.15,
-                                                 strain_rate=strain_rate,
-                                                 mode=mode)*dsigma_scale)
-                    profile_distance.append(p_dist)
+                results = self.compute_yse(well, **kwds_yse)
+                dsigma_scaled = results['dsigma_max']*dsigma_scale
+                strength.extend(dsigma_scaled.tolist())
+                depths.extend(results['z'].tolist())
+                if show_competent:
+                    competent_y.extend(results['competent_depths'])
+                    competent_x.extend([p_dist]*len(results['competent_depths']))
                 i = show_progress(i, imax)
             t = tri.Triangulation(x=np.asarray(profile_distance),
-                                  y=np.asarray(depths)*scale)
-            self._strength_profiles[profile_stats] = (t, strength)
+                                  y=np.asarray(depths))
+            self._strength_profiles[profile_stats] = (t, strength, competent_x,
+                                                      competent_y)
 
         if isinstance(levels, int):
             levels = np.linspace(min(strength), max(strength), levels)
 
-        return ax.tricontourf(t, strength, levels=levels, cmap=cmap)
+        if not only_competent:
+            obj = ax.tricontourf(t, strength, levels=levels, cmap=cmap)
+        else:
+            obj = None
+
+        if show_competent:
+            competent_x = np.asarray(competent_x)
+            competent_y = np.asarray(competent_y)
+            kwds = {'c':'white', 's':1}
+            if 'color' in competent_kwds:
+                kwds['c'] = competent_kwds['color']
+                competent_kwds.pop('color')
+            if competent_kwds is not None:
+                for key in competent_kwds.keys():
+                    kwds[key] = competent_kwds[key]
+            ax.scatter(competent_x, competent_y, **kwds)
+
+        return obj
 
     def plot_topography(self, ax=None):
         if ax is None:
@@ -1286,27 +1365,25 @@ class GMS:
         valid_types = ['filled', 'lines']
         if type not in valid_types:
             raise ValueError('Invalid type', type)
-        if unit == 'km':
-            scale = 0.001
-        elif unit == 'm':
-            scale = 1.0
-        else:
-            raise ValueError('Unknown unit', unit)
-        if ax is None:
-            import matplotlib.pyplot as plt
-        else:
-            plt = ax
+
+        length_units = {'km':1e-3, 'm':1}
+        _ = length_units[unit]
+        len_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
+
+        ax = ax or plt.axes()
+        ax.yaxis.set_major_formatter(len_fmt)
+        ax.xaxis.set_major_formatter(len_fmt)
 
         layer_d = self.layer_dict
 
         # Make the points where to sample the model
-        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale)
+        px, py, dist = self._points_and_dist_(x0, y0, x1, y1, num, scale=1)
         if xaxis == 'dist':
             d = dist
         elif xaxis == 'x':
-            d = px*scale
+            d = px
         elif xaxis == 'y':
-            d = py*scale
+            d = py
         else:
             raise ValueError('Unknown xaxis', xaxis)
         d = d.tolist()
@@ -1324,7 +1401,7 @@ class GMS:
             for x, y in zip(px, py):
                 z.append(layer(x, y))
                 v.append(layer(x, y, var))
-        z = np.asarray(z)*scale
+        z = np.asarray(z)
         v = np.asarray(v)
 
         # Make a triangulation
