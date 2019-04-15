@@ -1409,9 +1409,9 @@ class GMS:
 
         # Print the contours
         if type ==  'filled':
-            return plt.tricontourf(t, v, **kwds)
+            return ax.tricontourf(t, v, **kwds)
         elif type == 'lines':
-            return plt.tricontour(t, v, **kwds)
+            return ax.tricontour(t, v, **kwds)
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
                  plitho_crit=0.01, grad_crit=10.0, title=None, ax=None,
