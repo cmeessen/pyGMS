@@ -560,7 +560,10 @@ class GMS:
         a_d = material['a_d'][0]
         if q_d == 0 or a_d == 0:
             return np.nan
-        return sigma_d*(1.0 - np.sqrt(-1.0*R*temp/q_d*np.log(strain_rate/a_d)))
+        dorn = sigma_d*(1.0 - np.sqrt(-1.0*R*temp/q_d*np.log(strain_rate/a_d)))
+        if dorn < 0.0:
+            dorn = 0
+        return dorn
 
     def sigma_d(self, material, z, temp, strain_rate=None,
                 compute=None, mode=None, output=None):
@@ -620,23 +623,24 @@ class GMS:
         else:
             s_diff = np.nan
 
-        if 'dislocation' in compute and 'dorn' in compute:
-            if s_byerlee > 200e6 or material['q_d'] == 0:
-                s_creep = self.sigma_dislocation(material, temp, e_prime)
-            else:
-                s_creep = self.sigma_dorn(material, temp, e_prime)
-        elif 'dislocation' in compute and not 'dorn' in compute:
-            s_creep = self.sigma_dislocation(material, temp, e_prime)
-        elif 'dorn' in compute and not 'dislocation' in compute:
-            s_creep = self.sigma_dorn(material, temp, e_prime)
+        if 'dislocation' in compute:
+            s_disloc = self.sigma_dislocation(material, temp, e_prime)
         else:
-            s_creep = np.nan
+            s_disloc = np.nan
+        if 'dorn' in compute:
+            s_dorn = self.sigma_dorn(material, temp, e_prime)
+        else:
+            s_dorn = np.nan
+
+        if (s_disloc > 200e6) and (s_dorn > 0):
+            s_creep = s_dorn
+        else:
+            s_creep = s_disloc
 
         min_sigma = min([s_byerlee, s_creep, s_diff])
         factor = 1
         if mode == 'compression':
             factor = -1
-
 
         out = dict()
         out['dsigma_max'] = min_sigma*factor
@@ -1175,7 +1179,7 @@ class GMS:
         strain_rate : float, optional
         force : bool
             If 'True` will force the new computation of the strength
-        show_competent : bool
+        show_competent : str, bool, optional
             Plot the tops and bases of the competent layers according to the
             `plitho_crit` and `grad_crit`. Will re-compute strength even if
             it has been computed and stored before. Details see compute_yse().
@@ -1333,7 +1337,8 @@ class GMS:
                                cmap=afrikakarte(), vmin=vmin, vmax=vmax)
 
     def plot_profile(self, x0, y0, x1, y1, var='T', num=100, ax=None,
-                     unit='m', type='filled', xaxis='dist', **kwds):
+                     unit='m', type='filled', xaxis='dist', annotate=False,
+                     **kwds):
         """
         Plot a profile of variable `var` along the specified coordinates.
 
@@ -1350,10 +1355,13 @@ class GMS:
         unit : str
             Defines z unit. 'm' or 'km'
         type : str
-            'filled' for a filled contour plot or 'lines' for contours
+            'filled' for a filled contour plot or 'lines', 'contours' for
+            contours
         xaxis : str
             The dimension to show along the x-axis. 'dist' for distance
             where 0km is at (x0,y0), 'x' or 'y' for the respective axis.
+        annotate : bool
+            If `True` will annotate the contour lines.
         kwds : dict
            Keywords sent to matplotlib.pyplot.tricontour() or
            matplotlib.pyplot.contourf(), depoending on `type`
@@ -1362,7 +1370,7 @@ class GMS:
         -------
         mappable
         """
-        valid_types = ['filled', 'lines']
+        valid_types = ['filled', 'lines', 'contour']
         if type not in valid_types:
             raise ValueError('Invalid type', type)
 
@@ -1409,16 +1417,20 @@ class GMS:
 
         # Print the contours
         if type ==  'filled':
-            return ax.tricontourf(t, v, **kwds)
-        elif type == 'lines':
-            return ax.tricontour(t, v, **kwds)
+            obj = ax.tricontourf(t, v, **kwds)
+        elif type == 'lines' or type == 'contours':
+            obj = ax.tricontour(t, v, **kwds)
+            if annotate:
+                ax.clabel(obj, colors='black')
+        return obj
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
                  plitho_crit=0.01, grad_crit=10.0, title=None, ax=None,
                  strength_unit='GPa', depth_unit='km', plot_bodies=False,
-                 body_cmap=None, body_names=None, fill_mode='envelope',
-                 label_competent='Competent layer', label_envelope=None,
-                 leg_kwds=None, compute=None, plot_all_sigma=False, **kwds):
+                 body_cmap=None, body_names=None, body_col_width=None,
+                 fill_mode='envelope', label_competent='Competent layer',
+                 label_envelope=None, leg_kwds=None, compute=None,
+                 plot_all_sigma=False, scale_axes=True, **kwds):
         """ Plot a yield strength envelope of a well or an x,y coordinate.
 
         Plot a yield strength envelope for the given mode at the specified
@@ -1441,8 +1453,9 @@ class GMS:
             Lithostatic pressure criterion betwen 0 and 1.
         grad_crit : float
             Diff. stress gradient criterion in MPa/km.
-        title : str, optional
-            The title of the plot, if None will plot the x,y coordinates
+        title : str, bool, optional
+            The title of the plot, if None will plot the x,y coordinates. To
+            deactivate use `False`.
         ax : matplotlib.axes instance, optional
             The axis to plot into
         strength_unit : str
@@ -1458,6 +1471,8 @@ class GMS:
             List of strings for the bodies in the model from top to bottom.
             Needs to include all bodies, not only the ones that will appear in
             the profile. If `None` the integrated names will be printed.
+        body_col_width : float, optional
+            The width of the body column in MPa
         fill_mode : str, optional
             `envelope` or `box` to mark the competent layers according to the
             chosen `grad_crit` and `plitho_crit`. `envelope` fills the area
@@ -1483,6 +1498,7 @@ class GMS:
             Show the title or not
         """
         show_title = True
+        show_legend = True
         show_Te = True
         left_lim = 0
         right_lim = 0
@@ -1506,13 +1522,16 @@ class GMS:
             return_params.append('byerlee')
             plot_processes = ['byerlee']
             if compute is None:
-                plot_processes.extend(['dislocation', 'dorn'])
                 return_params.extend(['dislocation', 'dorn'])
             else:
                 plot_processes.extend(compute)
                 return_params.extend(compute)
         if 'show_title' in kwds:
             show_title = kwds['show_title']
+        if title == False:
+            show_title = title
+        if 'show_legend' in kwds:
+            show_legend = kwds['show_legend']
         if 'show_Te' in kwds:
             show_Te = kwds['show_Te']
 
@@ -1554,7 +1573,10 @@ class GMS:
         if plot_bodies:
             if body_cmap is None:
                 body_cmap = plt.get_cmap('Set2')
-            column_width = 0.2*(strength.max() - strength.min())
+            if body_col_width:
+                column_width = body_col_width
+            else:
+                column_width = 0.2*(strength.max() - strength.min())
             layer_ids = results['layer_ids']
             unique_ids = list(self.layer_dict_unique.keys())
             if body_names is None:
@@ -1580,14 +1602,17 @@ class GMS:
         if label_competent or label_envelope or plot_bodies:
             if leg_kwds is None:
                 leg_kwds = dict()
-            ax.legend(**leg_kwds)
+            if show_legend:
+                ax.legend(**leg_kwds)
 
-        _ = depth_units[depth_unit]
-        y_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
-        ax.yaxis.set_major_formatter(y_fmt)
-        _ = strength_units[strength_unit]
-        x_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*_))
-        ax.xaxis.set_major_formatter(x_fmt)
+        if scale_axes:
+            du = depth_units[depth_unit]
+            y_fmt = mpl.ticker.FuncFormatter(lambda y, pos: '{0:g}'.format(y*du))
+            ax.yaxis.set_major_formatter(y_fmt)
+
+            su = strength_units[strength_unit]
+            x_fmt = mpl.ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*su))
+            ax.xaxis.set_major_formatter(x_fmt)
 
         if mode == 'compression':
             left_lim = 1.1*strength.min()
