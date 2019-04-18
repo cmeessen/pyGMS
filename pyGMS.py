@@ -299,6 +299,7 @@ class GMS:
         # Storage
         self.wells = {}
         self._strength_profiles = {}
+        self.integrated_strength = None
         self.materials_db = None     # Materials databse
         self.body_materials = None   # Materials for each body
         self.elastic_thickness = {} # eff. elastic thickness depending on strain rate
@@ -657,10 +658,57 @@ class GMS:
                 out['diffusion'] = s_diff*factor
 
         return out
+    
+    def compute_integrated_strength(self, nz=1000, spacing=None, force=False,
+                                    mode='compression', strain_rate=None,): 
+        """ Compute the integrated strength
+
+        Comptues the integrated strength of the model and stores it as a numpy
+        array with columns x, y, z in `self.integrated_strength`.
+
+        Paramters
+        ---------
+        nz : int
+            Number of vertical points used for the integration
+        spacing : float, optional
+
+        """
+        if self.integrated_strength is not None and force is False:
+            print('Already computed. Use `force=True` to re-compute.')
+            return
+        self._v_('Computing integrated strength', 0)
+        
+        if spacing is None:
+            x_coords = np.unique(self.data_raw[:,0])
+            y_coords = np.unique(self.data_raw[:,1])
+        else:
+            xmin, xmax = self.xlim
+            ymin, ymax = self.ylim
+            x_coords = np.arange(xmin, xmax+spacing, spacing)
+            y_coords = np.arange(ymin, ymax+spacing, spacing)
+        x_points, y_points = np.meshgrid(x_coords, y_coords)
+        x_points = x_points.flatten()
+        y_points = y_points.flatten()
+        
+        int_str = []
+        i = show_progress()
+        i_max = x_points.shape[0]
+        for x, y in zip(x_points, y_points):
+            well = self.get_well(x, y)
+            results = self.compute_yse(well, mode=mode, strain_rate=None,
+                                       nz=nz, return_params=['integrate'])
+            int_str.append(results['dsigma_int'])
+            i = show_progress(i, i_max)
+            
+        out = np.empty([x_points.shape[0], 3])
+        out[:, 0] = x_points
+        out[:, 1] = y_points
+        out[:, 2] = np.asarray(int_str)
+        self.integrated_strength = out
 
     def compute_surface_heat_flow(self, return_tcond=False, spacing=None,
                                   force=False):
-        """
+        """Compute the surface heat flow of the model.
 
         Parameters
         ----------
@@ -766,7 +814,8 @@ class GMS:
     def compute_yse(self, well, mode='compression', nz=500, strain_rate=None,
                     plitho_crit=0.01, grad_crit=10.0, return_params=None,
                     compute=None):
-        """
+        """ Compute yield strength envelopes and associated variables
+
         Compute the yield strength envelope for a specific mode at a well
         instance. Also computes the effect elastic thickness after Burov and
         Diament (1995): First, the mechanical thickness is computed. It is
@@ -788,22 +837,34 @@ class GMS:
             Lithostatic pressure criterion betwen 0 and 1.
         grad_crit : float
             Diff. stress gradient criterion in MPa/km.
-        return_params : list
-            List additional parameters that should be returned with result
-                - `is_competent` : return bool array where layers are competent
-                - `diffusion`    : returns diff. stress for diffusion at all
-                                   depths
-                - `dislocation`  : returns stress for dislocation at all depths
-                - `dorn`         : returns stress for Dorn's law at all depths
+        
+        return_params
+        -------------
+        A list of str with parameters that should be returned in the results
+        dictionary. Possible string values and their return values
+        
+        `integreate`:
+            `dsigma_int`, the integrated strength in Pa m
+        `is_competent`:
+            Returns multiple parameters
+            `Te`, the effective elastic thickness
+            `n_layers` the number of decoupled layers
+            `is_competent` a bool array where layers in the YSE are competent
+            `competent_depths` the tops and bottoms of the competent layers are given
+        `diffusion`:
+            returns diff. stress for diffusion at all depths
+        `dislocation`:
+            returns stress for dislocation at all depths
+        `dorn`:
+            returns stress for Dorn's law at all depths
 
         Returns
         -------
         results : dict
             Dictionary containing keys
                 - `dsigma_max` : the yield strength envelope
-                - `Te`         : the computed effective elastic thickness
-                - `n_layers`   : the number of decoupled layers according to the
-                                 criteria
+                - `layer_ids`  : the corresponding layer ids
+                - `z`          : the depth values
         """
         results = dict()
         output = []
@@ -848,6 +909,9 @@ class GMS:
         if output is not None:
             for param in output:
                 results[param] = np.asarray(results[param])
+        
+        if 'integrate' in return_params:
+            results['dsigma_int'] = np.trapz(dsigma_max, zs)
 
         if 'is_competent' in return_params:
             # Compute the mechanical thickness of each layer
@@ -1633,6 +1697,7 @@ class GMS:
         if ax_new:
             ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
             ax.set_ylabel('Elevation / km')
+            fig.show()
 
     def set_rheology(self, strain_rate=None, rheologies=None, bodies=None):
         """
