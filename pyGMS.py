@@ -220,8 +220,9 @@ class Well:
             var_values = self.vars[varname]
             return np.gradient(var_values, z)
 
-    def plot_var(self, varname):
-        plt.plot(self.vars[varname], self.z, label=varname)
+    def plot_var(self, varname, **kwds):
+        kwds.setdefault('label', varname)
+        plt.plot(self.vars[varname], self.z, **kwds)
 
     def plot_grad(self, varname, scale=1, return_array=False, abs=False):
         """
@@ -290,11 +291,14 @@ class GMS:
         self.n_layers_unique = None
         self.layer_dict = None         # Layer ID -> Layer Name
         self.layer_dict_unique = None
+        self.layer_map = None # Relate refined ID to unique ID
         self.layers = None
         self.points_per_layer = None
         self.layer_points = None
         self.surface_heat_flow = None
         self._info_df = None
+        self.t_ductile = None
+        self.t_brittle = None
 
         # Storage
         self.wells = {}
@@ -658,9 +662,9 @@ class GMS:
                 out['diffusion'] = s_diff*factor
 
         return out
-    
+
     def compute_integrated_strength(self, nz=1000, spacing=None, force=False,
-                                    mode='compression', strain_rate=None,): 
+                                    mode='compression', strain_rate=None,):
         """ Compute the integrated strength
 
         Comptues the integrated strength of the model and stores it as a numpy
@@ -677,7 +681,7 @@ class GMS:
             print('Already computed. Use `force=True` to re-compute.')
             return
         self._v_('Computing integrated strength', 0)
-        
+
         if spacing is None:
             x_coords = np.unique(self.data_raw[:,0])
             y_coords = np.unique(self.data_raw[:,1])
@@ -689,7 +693,7 @@ class GMS:
         x_points, y_points = np.meshgrid(x_coords, y_coords)
         x_points = x_points.flatten()
         y_points = y_points.flatten()
-        
+
         int_str = []
         i = show_progress()
         i_max = x_points.shape[0]
@@ -699,7 +703,7 @@ class GMS:
                                        nz=nz, return_params=['integrate'])
             int_str.append(results['dsigma_int'])
             i = show_progress(i, i_max)
-            
+
         out = np.empty([x_points.shape[0], 3])
         out[:, 0] = x_points
         out[:, 1] = y_points
@@ -759,15 +763,76 @@ class GMS:
         if return_tcond:
             return tconds
 
+    def compute_bd_thickness(self, dx=50e3, nz=500, mode='compression',
+                             strain_rate=None):
+        """ Compute the brittle and ductile thicknesses of all layers
+
+        Compute the ductile thicknesses of each layer and store them in
+        self.t_ductile and self.t_brittle as
+        `[xpoints, ypoints, dict_of_thicknesses]`. The keys of
+        `dict_of_thicknesses` are the unique layer ids.
+
+        Parameters
+        ----------
+        dx : float
+            Horizontal resolution of the output
+        nz : int
+            Number of vertical points
+        mode : str
+            `compression` or `extension`
+        strain_rate : float, optional
+            Strain rate in 1/s. Will use self.strain_rate if None.
+        """
+        return_params = ['t_brittle', 't_ductile']
+
+        xmin, xmax = self.xlim
+        ymin, ymax = self.ylim
+        pointsx = np.arange(xmin, xmax+dx, dx)
+        pointsy = np.arange(ymin, ymax+dx, dx)
+        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+        xpoints = xgrid.flatten()
+        ypoints = ygrid.flatten()
+
+        t_brittle = OrderedDict()
+        t_ductile = OrderedDict()
+        for uid in self.layer_dict_unique:
+            t_brittle[uid] = []
+            t_ductile[uid] = []
+
+        self._v_(('Computing brittle/ductile thicknesses'), 0)
+        self._v_(('> Strain rate:', strain_rate or self.strain_rate, '1/s'), 0)
+        self._v_(('> Resolution :', dx, 'm'), 0)
+        self._v_(('> nz         :', nz))
+
+        p = show_progress()
+        pmax = xpoints.shape[0]
+        for x, y in zip(xpoints, ypoints):
+            w = self.get_well(x, y, 'T')
+            w_r = self.compute_yse(w, mode=mode, nz=nz, strain_rate=strain_rate,
+                                 return_params=return_params)
+            w_t_brittle = w_r['t_brittle']
+            w_t_ductile = w_r['t_ductile']
+            for t_list, t_val in zip(t_brittle.values(), w_t_brittle.values()):
+                t_list.append(t_val)
+            for t_list, t_val in zip(t_ductile.values(), w_t_ductile.values()):
+                t_list.append(t_val)
+            p = show_progress(p, pmax)
+
+        for l_brittle, l_ductile in zip(t_brittle.values(), t_ductile.values()):
+            l_brittle = np.asarray(l_brittle)
+            l_ductile = np.asarray(l_ductile)
+
+        self.t_ductile = [xpoints, ypoints, t_ductile]
+        self.t_brittle = [xpoints, ypoints, t_brittle]
+
     def compute_elastic_thickness(self, dx=50e3, nz=500, mode='compression',
-                                  strain_rate=None, grad_crit=20,
-                                  plitho_crit=0.05):
+                                  strain_rate=None, crit_sigma=20,
+                                  crit_plitho=0.05):
         """
         Compute the effect elastic thickness after Burov and Diament (1995).
         First, the mechanical thickness is computed. It is defined as the depth
         from the layer top to the point where the differential stress is less
-        than 5% of lithostatic pressure or where the gradient d_sigma/dz is
-        below 20 MPa/km.
+        than 1% - 5% of lithostatic pressure or it is below 10 - 20 MPa.
 
         Parameters
         ----------
@@ -777,8 +842,12 @@ class GMS:
             Number of points used to compute Te at each point
         mode : str
             'compression' or 'extension'
-        strain_rate : None or float
+        strain_rate : float, optional
             If None will use self.strain_rate
+        crist_sigma : float
+            Diff. stress criterion in MPa
+        crit_plitho : float
+            Lower limit for lithostatic pressure
         """
         strain_rate = strain_rate or self.strain_rate
         xmin, xmax = self.xlim
@@ -793,15 +862,15 @@ class GMS:
         print('> Strain rate               :', strain_rate, '1/s')
         print('> Horizontal resolution     :', dx, 'm')
         print('> Number of vertical points :', nz)
-        print('> dSigma gradient limit     :', grad_crit,'MPa/km')
-        print('> Lithostatic pressure limit:', plitho_crit*100,'% of Plitho')
+        print('> Min. sigma criterion      :', crit_sigma,'MPa')
+        print('> Lithostatic pressure crit.:', crit_plitho*100,'% of Plitho')
         n = show_progress()
         nmax = xgrid.flatten().shape[0]
         yse_return = ['is_competent']
         for x, y in zip(xgrid.flatten(), ygrid.flatten()):
             well = self.get_well(x, y, var='T')
-            result = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
-                                      grad_crit, return_params=yse_return)
+            result = self.compute_yse(well, mode, nz, strain_rate, crit_plitho,
+                                      crit_sigma, return_params=yse_return)
             competent_layers.append(result['n_layers'])
             eff_Te.append(result['Te'])
             n = show_progress(n, nmax)
@@ -812,7 +881,7 @@ class GMS:
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
     def compute_yse(self, well, mode='compression', nz=500, strain_rate=None,
-                    plitho_crit=0.01, grad_crit=10.0, return_params=None,
+                    crit_plitho=0.05, crit_sigma=20.0, return_params=None,
                     compute=None):
         """ Compute yield strength envelopes and associated variables
 
@@ -821,7 +890,7 @@ class GMS:
         Diament (1995): First, the mechanical thickness is computed. It is
         defined as the depth from the layer top to the point where the
         differential stress is less than 1-5% of lithostatic pressure or where
-        the gradient d_sigma/dz is below 10-20 MPa/km.
+        the it is below 10-20 MPa.
 
         Parameters
         ----------
@@ -833,17 +902,17 @@ class GMS:
         strain_rate : float
             Strain rate in 1/s. If `None`, will use strain rate provided with
             `set_rheology()`.
-        plitho_crit : float
+        crit_plitho : float
             Lithostatic pressure criterion betwen 0 and 1.
-        grad_crit : float
-            Diff. stress gradient criterion in MPa/km.
-        
+        crit_sigma : float
+            Lower limit for mechanical thickness of absolute differential stress
+
         return_params
         -------------
         A list of str with parameters that should be returned in the results
         dictionary. Possible string values and their return values
-        
-        `integreate`:
+
+        `integrate`:
             `dsigma_int`, the integrated strength in Pa m
         `is_competent`:
             Returns multiple parameters
@@ -857,6 +926,12 @@ class GMS:
             returns stress for dislocation at all depths
         `dorn`:
             returns stress for Dorn's law at all depths
+        `P_litho`:
+            lithostatic pressure
+        `t_brittle`:
+            Brittle thickness of each layer
+        `t_ductile`:
+            Ductile thickness of each layer
 
         Returns
         -------
@@ -869,7 +944,7 @@ class GMS:
         results = dict()
         output = []
         return_params = return_params or []
-        return_vals = ['is_competent']
+        return_vals = ['is_competent', 'P_litho', 't_ductile', 't_brittle']
         output_vals = ['byerlee', 'dislocation', 'diffusion', 'dorn']
         for param in return_params:
             if param in output_vals:
@@ -909,21 +984,40 @@ class GMS:
         if output is not None:
             for param in output:
                 results[param] = np.asarray(results[param])
-        
+
+        if 't_ductile' in return_params or 't_brittle' in return_params:
+            grad_dsigma = np.gradient(np.abs(dsigma_max), -z)  # (-) = ductile
+            well_unique_ids = np.asarray([self.layer_map[i] for i in lay_ids])
+            delta_t = zs[0] - zs[1]
+            t_ductile = OrderedDict()
+            t_brittle = OrderedDict()
+            for lay_id in self.layer_dict_unique.keys():
+                idx_lay_id = well_unique_ids == lay_id
+                n_ductile = np.sum(grad_dsigma[idx_lay_id] < 0)
+                n_brittle = np.sum(grad_dsigma[idx_lay_id] >= 0)
+                t_ductile[lay_id] = n_ductile*delta_t
+                t_brittle[lay_id] = n_brittle*delta_t
+            if 't_ductile' in return_params:
+                results['t_ductile'] = t_ductile
+            if 't_brittle' in return_params:
+                results['t_brittle'] = t_brittle
+
         if 'integrate' in return_params:
             results['dsigma_int'] = np.trapz(dsigma_max, zs)
+
+        if 'P_litho' in return_params:
+            results['P_litho'] = P_litho
 
         if 'is_competent' in return_params:
             # Compute the mechanical thickness of each layer
             strength = np.abs(np.asarray(dsigma_max))
-            grad_strength = np.gradient(strength, zs)*0.001 # MPa/km
-            P_mech = np.asarray(P_litho)*plitho_crit
+            P_mech = np.asarray(P_litho)*crit_plitho
             # Use simplification by Burov and Diament (1995), p. 3915
             # Get a bool array, where layers are mechanical with respect to PLitho
-            is_competent_P = strength >= P_mech
-            # Bool array where layers are mechanical with respect to gradient
-            is_competent_grad = np.invert((grad_strength>0) & (grad_strength <= grad_crit))
-            is_competent = np.logical_and(is_competent_P, is_competent_grad)
+            is_competent_P = strength > P_mech
+            # Bool array where layers are mechanical with respect to absolute Sigma
+            is_competent_S = strength > crit_sigma*1e6
+            is_competent = np.logical_and(is_competent_P, is_competent_S)
 
             # Detect the individual mechanical thicknesses
             z_layer_top = ztopo
@@ -957,8 +1051,12 @@ class GMS:
                 for h in h_mechs:
                     h_mech += h**3
                 h_mech = h_mech**(1.0/3.0)
-            else:
+            elif len(h_mechs) == 1:
                 h_mech = h_mechs[0]
+            else:
+                h_mech = ztopo - well.z[-1]
+                h_mechs = [h_mech]
+                competent_depths = [ztopo, well.z[-1]]
             results['Te'] = h_mech
             results['n_layers'] = len(h_mechs)
             results['is_competent'] = is_competent
@@ -1019,15 +1117,19 @@ class GMS:
                 well.add_var(var, np.asarray(values))
             if store:
                 self.wells[(x, y, var)] = well
-        return self.wells[(x, y, var)]
+            return well
+        else:
+            return self.wells[(x, y, var)]
 
     def read_header(self):
         self._v_('Reading headers')
         gms_fem_f = open(self.gms_fem, 'r')
         i = 0            # Line counter
         n_layers = 0
+        unique_id = 0
         layer_d = OrderedDict()
         layer_d_unique = OrderedDict()
+        layer_map = OrderedDict()
         field_d = {}
         # Go through header
         for l in gms_fem_f:
@@ -1054,7 +1156,9 @@ class GMS:
                 n_layers += 1
                 self._v_(('Found layer', layer_name))
                 if self._is_unique_layer_(layer_name):
+                    unique_id = layer_id
                     layer_d_unique[layer_id] = layer_name
+                layer_map[layer_id] = unique_id
             # Stop if header ends
             if not l.startswith('#'):
                 break
@@ -1062,6 +1166,7 @@ class GMS:
         gms_fem_f.close()
         self.layer_dict = layer_d
         self.layer_dict_unique = layer_d_unique
+        self.layer_map = layer_map
         self.field_dict = field_d
         self.n_layers = n_layers
         self.n_layers_unique = len(list(layer_d_unique.keys()))
@@ -1194,7 +1299,7 @@ class GMS:
                 fill_kwds = dict()
 
         j = 0
-        for i in list(layer_d.keys()):
+        for i in layer_d.keys():
             layer = self.layers[i]  # type: Layer
             z = []
             for x, y in zip(px, py):
@@ -1203,8 +1308,7 @@ class GMS:
             if cmap is not None:
                 color = cmap.colors[j]
                 zmin = []
-                if i < list(
-                    layer_d.keys())[-1]:
+                if i < list(layer_d.keys())[-1]:
                     next_layer = self.layers[list(layer_d.keys())[j+1]]
                     for x, y in zip(px, py):
                         zmin.append(next_layer(x, y))
@@ -1219,7 +1323,7 @@ class GMS:
                               mode='compression', compute=None,
                               strain_rate=None,  force=False,
                               show_competent=False, competent_kwds=None,
-                              plitho_crit=0.01, grad_crit=10,
+                              crit_plitho=0.05, crit_sigma=20,
                               ax=None, xaxis='dist', unit='km', dsigma='Pa',
                               levels=50, cmap=None):
         """ Compute and plot an arbitrary yield strength profile
@@ -1245,14 +1349,14 @@ class GMS:
             If 'True` will force the new computation of the strength
         show_competent : str, bool, optional
             Plot the tops and bases of the competent layers according to the
-            `plitho_crit` and `grad_crit`. Will re-compute strength even if
+            `crit_plitho` and `crit_sigma`. Will re-compute strength even if
             it has been computed and stored before. Details see compute_yse().
         competent_kwds : dict, optional
             Keywords that go straight to `ax.scatter()`
-        plitho_crit : float
+        crit_plitho : float
             Lithostatic pressure criterion betwen 0 and 1.
-        grad_crit : float
-            Diff. stress gradient criterion in MPa/km.
+        crit_sigma : float
+           Lower limit for mechanical thickness of absolute differential stress
         ax : matplotlib.axes
             Axes object to plot onto. If `None` will use matplotlib.pyplot
         xaxis : str
@@ -1262,7 +1366,7 @@ class GMS:
             Unit of length, `km` or `m`
         dsigma : str
             Unit of differential stress `GPa`, `MPa`, `Pa`
-        levels : int or np.array
+        levels : int, list, np.array
             If `int` defines the number of levels for the contour plot,
             if a 1D numpy array will use these levels as contour levels.
         cmap : str, matplotlih colormap, optional
@@ -1333,22 +1437,23 @@ class GMS:
         # Check if stored
         # TODO: This must be handled better, is missing rheology and
         #  coordinate system!
-        profile_stats = (x0, y0, x1, y1, strain_rate, show_competent)
+        profile_stats = (x0, y0, x1, y1, strain_rate, show_competent, dsigma_scale)
         if profile_stats in self._strength_profiles.keys() and not force:
-            t, strength, competent_x, competent_y = self._strength_profiles[profile_stats]
+            t, strength, competent_x, competent_y, dsigma_scale = self._strength_profiles[profile_stats]
         else:
             kwds_yse = {'mode':mode,
                         'nz':num_vert,
                         'strain_rate':strain_rate,
-                        'plitho_crit':plitho_crit,
-                        'grad_crit':grad_crit,
+                        'crit_plitho':crit_plitho,
+                        'crit_sigma':crit_sigma,
                         'return_params':return_params,
                         'compute':compute}
             # Obtain the wells
             depths = []
             strength = []
             profile_distance = []
-            print('Computing strength')
+            self._v_('Computing strength', 0)
+            self._v_(('Strength scale:', dsigma_scale), 1)
             i = show_progress()
             imax = len(px)
             for x, y, p_dist in zip(px, py, d):
@@ -1365,8 +1470,9 @@ class GMS:
             t = tri.Triangulation(x=np.asarray(profile_distance),
                                   y=np.asarray(depths))
             self._strength_profiles[profile_stats] = (t, strength, competent_x,
-                                                      competent_y)
+                                                      competent_y, dsigma_scale)
 
+        self._v_(('Computed strength:', min(strength), ' -', max(strength)), 1)
         if isinstance(levels, int):
             levels = np.linspace(min(strength), max(strength), levels)
 
@@ -1489,12 +1595,13 @@ class GMS:
         return obj
 
     def plot_yse(self, loc, strain_rate=None, mode='compression', nz=500,
-                 plitho_crit=0.01, grad_crit=10.0, title=None, ax=None,
+                 crit_plitho=0.05, crit_sigma=20.0, title=None, ax=None,
                  strength_unit='GPa', depth_unit='km', plot_bodies=False,
                  body_cmap=None, body_names=None, body_col_width=None,
                  fill_mode='envelope', label_competent='Competent layer',
                  label_envelope=None, leg_kwds=None, compute=None,
-                 plot_all_sigma=False, scale_axes=True, **kwds):
+                 plot_all_sigma=False, scale_axes=True, plot_kwds=None,
+                 kwds_fill=None, return_params=None, **kwds):
         """ Plot a yield strength envelope of a well or an x,y coordinate.
 
         Plot a yield strength envelope for the given mode at the specified
@@ -1513,10 +1620,10 @@ class GMS:
             `compression` or `extension`.
         nz : int
             The number of sampling points in depth.
-        plitho_crit : float
+        crit_plitho : float
             Lithostatic pressure criterion betwen 0 and 1.
-        grad_crit : float
-            Diff. stress gradient criterion in MPa/km.
+        crit_sigma : float
+           Lower limit for mechanical thickness of absolute differential stress
         title : str, bool, optional
             The title of the plot, if None will plot the x,y coordinates. To
             deactivate use `False`.
@@ -1531,15 +1638,16 @@ class GMS:
         body_cmap : str, matplotlib.colors.ListedColormap, optional
             Either the name of a matplotlib colormap or a `ListedColormap`
             instance. Will use `Set2` by default.
-        body_names : list of str
+        body_names : list of str, Bool, optional
             List of strings for the bodies in the model from top to bottom.
             Needs to include all bodies, not only the ones that will appear in
-            the profile. If `None` the integrated names will be printed.
+            the profile. If `None` the integrated names will be printed. If
+            `False`, will not plot any body names.
         body_col_width : float, optional
             The width of the body column in MPa
         fill_mode : str, optional
             `envelope` or `box` to mark the competent layers according to the
-            chosen `grad_crit` and `plitho_crit`. `envelope` fills the area
+            chosen `crit_sigma` and `crit_plitho`. `envelope` fills the area
             between the YSE and 0 Pa, `box` creates boxes.
         lambel_competent : str, optional
             The label that should be used to mark the filled area.
@@ -1553,6 +1661,10 @@ class GMS:
             use `[dislocation', 'dorn']`.
         plot_all_sigma : bool
             Will plot all diff. stresses for all processes defined in `compute`.
+        plot_kwds : dict, optional
+            Keywords that will be sent to matplotlib.axes.plot()
+        return_params : list of str
+            'Te' for elastic thickness
 
         Keyword arguments
         -----------------
@@ -1568,7 +1680,8 @@ class GMS:
         right_lim = 0
         strength_units = {'GPa':1e-9, 'MPa':1e-6}
         depth_units = {'km':1e-3, 'm':1}
-        return_params = ['is_competent']
+        yse_return_params = ['is_competent']
+        return_params = return_params or []
         plot_processes = None
 
         #if isinstance(loc, Well): <-- this didnt work
@@ -1583,27 +1696,31 @@ class GMS:
             msg = 'Unknown location', loc
             raise ValueError(msg)
         if plot_all_sigma:
-            return_params.append('byerlee')
+            yse_return_params.append('byerlee')
             plot_processes = ['byerlee']
             if compute is None:
-                return_params.extend(['dislocation', 'dorn'])
+                yse_return_params.extend(['dislocation', 'dorn'])
             else:
                 plot_processes.extend(compute)
-                return_params.extend(compute)
+                yse_return_params.extend(compute)
         if 'show_title' in kwds:
             show_title = kwds['show_title']
         if title == False:
-            show_title = title
+            show_title = False
         if 'show_legend' in kwds:
             show_legend = kwds['show_legend']
         if 'show_Te' in kwds:
             show_Te = kwds['show_Te']
+        if plot_kwds is None:
+            plot_kwds = dict()
+        if kwds_fill is None:
+            kwds_fill = dict()
 
         ymax = well.z[0]
         ymin = well.z[-1]
-        results = self.compute_yse(well, mode, nz, strain_rate, plitho_crit,
-                                   grad_crit, compute=compute,
-                                   return_params=return_params)
+        results = self.compute_yse(well, mode, nz, strain_rate, crit_plitho,
+                                   crit_sigma, compute=compute,
+                                   return_params=yse_return_params)
         strength = results['dsigma_max']
         strength_z = results['z']
         is_competent = results['is_competent']
@@ -1624,11 +1741,20 @@ class GMS:
             fig = plt.figure(figsize=(3,3), dpi=150)
         ax = ax or plt.axes()
 
-        ax.plot(strength, strength_z, label=label_envelope,
-                solid_joinstyle='miter')
+        if 'solid_joinstyle' not in list(plot_kwds.keys()):
+            plot_kwds['solid_joinstyle'] = 'miter'
+
+        ax.plot(strength, strength_z, label=label_envelope, **plot_kwds)
+
         if x_fill is not None:
-            ax.fill_betweenx(strength_z, x_fill, 0, linewidth=0, alpha=0.2,
-                             label=label_competent)
+            kwds_fill_def = {'linewidth': 0,
+                             'alpha': 0.2,
+                             'label': label_competent}
+            for kwd in kwds_fill_def:
+                if kwd not in kwds_fill:
+                    kwds_fill[kwd] = kwds_fill_def[kwd]
+            ax.fill_betweenx(strength_z, x_fill, 0, **kwds_fill)
+
         if plot_all_sigma:
             for process in plot_processes:
                 _val = results[process]
@@ -1645,6 +1771,8 @@ class GMS:
             unique_ids = list(self.layer_dict_unique.keys())
             if body_names is None:
                 body_names = [self.layer_dict_unique[i] for i in unique_ids]
+            elif body_names is False:
+                body_names = [None for i in unique_ids]
             for i in range(len(unique_ids) - 1):
                 this_id = unique_ids[i]
                 next_id = unique_ids[i + 1]
@@ -1682,6 +1810,7 @@ class GMS:
             left_lim = 1.1*strength.min()
         else:
             right_lim = 1.1*strength.max()
+
         ax.set_xlim(left=left_lim, right=right_lim)
         ax.set_ylim(ymin, ymax)
 
@@ -1698,6 +1827,9 @@ class GMS:
             ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
             ax.set_ylabel('Elevation / km')
             fig.show()
+
+        if 'Te' in return_params:
+            return eff_Te
 
     def set_rheology(self, strain_rate=None, rheologies=None, bodies=None):
         """
