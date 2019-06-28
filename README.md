@@ -1,10 +1,19 @@
 # pyGMS
 
+
 **G**eo**M**odelling**S**ystem is a modeling toolkit created at the GFZ Potsdam.
 pyGMS is a Python 3 module that provides some basic functions to plot and handle
 ASCII GMS files. It was originally written for the purpose of plotting yield
 strenght envelope cross sections. Therefore, if executed in the terminal, it
 expects a GMS file and a file specifying data on the yield strength envelope.
+
+## Installation
+
+Installation with anaconda
+
+```bash
+conda env create -f environment.yml
+```
 
 ```bash
 $ python pyGMS.py 
