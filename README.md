@@ -1,5 +1,7 @@
 # pyGMS
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/50e5df33317949d58e8d7bf7c40a336b)](https://www.codacy.com?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=cmeessen/pyGMS&amp;utm_campaign=Badge_Grade)
+
 pyGMS is a Python 3 module designed to analyse the rheological behaviour of
 lithosphere-scale 3D structural models that were created with the
 [GeoModellingSystem](https://www.gfz-potsdam.de/en/section/basin-modeling/infrastructure/gms/) (GMS, GFZ Potsdam). It was originally written for the
