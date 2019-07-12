@@ -776,7 +776,8 @@ class GMS:
         y_points = y_points.flatten()
 
         int_str = []
-        i = show_progress()
+        if self.verbose_level >= 0:
+            i = show_progress()
         i_max = x_points.shape[0]
         for x, y in zip(x_points, y_points):
             well = self.get_well(x, y, var='T')
@@ -784,7 +785,8 @@ class GMS:
                                        strain_rate=strain_rate, nz=nz,
                                        return_params=['integrate'])
             int_str.append(results['dsigma_int'])
-            i = show_progress(i, i_max)
+            if self.verbose_level >= 0:
+                i = show_progress(i, i_max)
 
         out = np.empty([x_points.shape[0], 3])
         out[:, 0] = x_points
@@ -845,7 +847,8 @@ class GMS:
         hflow = []
         if return_tcond:
             tconds = []
-        i = show_progress()
+        if self.verbose_level >= 0:
+            i = show_progress()
         i_max = x_points.shape[0]
         for x, y in zip(x_points, y_points):
             well = self.get_well(x, y, 'T')  # type: Well
@@ -857,7 +860,8 @@ class GMS:
             if return_tcond:
                 tconds.append(t_cond)
             hflow.append(-t_cond*grad)
-            i = show_progress(i, i_max)
+            if self.verbose_level >= 0:
+                i = show_progress(i, i_max)
         self.surface_heat_flow = np.empty([x_points.shape[0], 3])
         self.surface_heat_flow[:, 0] = x_points
         self.surface_heat_flow[:, 1] = y_points
@@ -907,7 +911,8 @@ class GMS:
         self._v_(('> Resolution :', dx, 'm'), 0)
         self._v_(('> nz         :', nz))
 
-        p = show_progress()
+        if self.verbose_level >= 0:
+            p = show_progress()
         pmax = xpoints.shape[0]
         for x, y in zip(xpoints, ypoints):
             w = self.get_well(x, y, 'T')
@@ -920,7 +925,8 @@ class GMS:
                 t_list.append(t_val)
             for t_list, t_val in zip(t_ductile.values(), w_t_ductile.values()):
                 t_list.append(t_val)
-            p = show_progress(p, pmax)
+            if self.verbose_level >= 0:
+                p = show_progress(p, pmax)
 
         # Convert lists to numpy arrays
         for layer_id in t_brittle:
@@ -973,8 +979,9 @@ class GMS:
         print('> Number of vertical points :', nz)
         print('> Min. sigma criterion      :', crit_sigma, 'MPa')
         print('> Lithostatic pressure crit.:', crit_plitho*100, '% of Plitho')
-        n = show_progress()
         nmax = xgrid.flatten().shape[0]
+        if self.verbose_level >= 0:
+            n = show_progress()
         yse_return = ['is_competent']
         for x, y in zip(xgrid.flatten(), ygrid.flatten()):
             well = self.get_well(x, y, var='T')
@@ -982,10 +989,11 @@ class GMS:
                                       crit_sigma, return_params=yse_return)
             competent_layers.append(result['n_layers'])
             eff_Te.append(result['Te'])
-            n = show_progress(n, nmax)
         result = np.empty([xgrid.flatten().shape[0], 3])
         result[:, 0] = xgrid.flatten()
         result[:, 1] = ygrid.flatten()
+            if self.verbose_level >= 0:
+                n = show_progress(n, nmax)
         result[:, 2] = np.asarray(eff_Te)
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
