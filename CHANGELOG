@@ -7,4 +7,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - This CHANGELOG.
 - Initial commit to the new pyGMS repository.
+- Added a Sphinx documentation for github-pages.
+- Created a Python 3 package ready for installation with pip or anaconda.
 
