@@ -417,6 +417,8 @@ class GMS:
                 return False
         except NameError:
             return False
+        except AttributeError:
+            return False
 
     @staticmethod
     def _is_unique_layer_(name):
