@@ -53,6 +53,7 @@ def show_progress(i_step=None, i_max=None):
     stdout.flush()
     return i_step + 1
 
+
 def check_ipython():
     """Check whether code is executed in an ipython environment."""
     if not os.environ.get('DISPLAY'):
@@ -99,3 +100,7 @@ def afrikakarte(type='listed'):
     elif type == 'linear':
         from matplotlib.colors import LinearSegmentedColormap
         return LinearSegmentedColormap('afrikakarte', vals.tolist())
+
+
+if __name__ == '__main__':
+    pass

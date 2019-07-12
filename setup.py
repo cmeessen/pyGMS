@@ -1,12 +1,12 @@
 from setuptools import setup
 from setuptools import find_packages
 from pkg_resources import resource_filename
-
+from pyGMS import __version__
 
 # METADATA
 NAME = 'pygms-cmeessen'
 MODULE = 'pyGMS'
-VERSION = '0.0.1'
+VERSION = __version__
 AUTHOR = 'Christian Meeßen'
 AUTHOR_EMAIL = 'christian.meessen@gfz-potsdam.de'
 MAINTAINER = 'Christian Meeßen'

@@ -1,4 +1,4 @@
-name: pyGMS
+name: pygms
 channels:
     - defaults
     - conda-forge
@@ -10,6 +10,15 @@ dependencies:
     - matplotlib
     - pandas
     - ipython
+    - nb_conda_kernels
     - cython
     - flake8
     - pydocstyle
+    - pep8
+    - sphinx
+    - sphinxcontrib-bibtex
+    - doc8
+    - m2r
+    - pip:
+        - sphinx_theme
+        - sphinxcontrib-jupyter
