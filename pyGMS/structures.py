@@ -747,7 +747,8 @@ class GMS:
         nz : int
             Number of vertical points used for the integration.
         spacing : float, optional
-            The point spacing.
+            The desired point spacing. Will use the original coordinates if
+            `None`.
         force : bool
             If `True`, will compute the integrated strength regardless whether
             it was already computed before.
@@ -869,7 +870,7 @@ class GMS:
         if return_tcond:
             return tconds
 
-    def compute_bd_thickness(self, dx=50e3, nz=500, mode='compression',
+    def compute_bd_thickness(self, dx=None, nz=500, mode='compression',
                              strain_rate=None):
         """Compute the brittle and ductile thicknesses of all layers.
 
@@ -880,25 +881,31 @@ class GMS:
 
         Parameters
         ----------
-        dx : float
-            Horizontal resolution of the output
+        dx : float, optional
+            Horizontal resolution of the output. Will use the original
+            coordinates if set to `None`.
         nz : int
-            Number of vertical points
+            Number of vertical points.
         mode : str
-            `compression` or `extension`
+            `compression` or `extension`.
         strain_rate : float, optional
             Strain rate in 1/s. Will use self.strain_rate if None.
 
         """
         return_params = ['t_brittle', 't_ductile']
 
-        xmin, xmax = self.xlim
-        ymin, ymax = self.ylim
-        pointsx = np.arange(xmin, xmax+dx, dx)
-        pointsy = np.arange(ymin, ymax+dx, dx)
-        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
-        xpoints = xgrid.flatten()
-        ypoints = ygrid.flatten()
+        if dx is None:
+            xpoints = self.data_raw[:, 0]
+            ypoints = self.data_raw[:, 1]
+            dx = xpoints[1] - xpoints[0]
+        else:
+            xmin, xmax = self.xlim
+            ymin, ymax = self.ylim
+            pointsx = np.arange(xmin, xmax+dx, dx)
+            pointsy = np.arange(ymin, ymax+dx, dx)
+            xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+            xpoints = xgrid.flatten()
+            ypoints = ygrid.flatten()
 
         t_brittle = OrderedDict()
         t_ductile = OrderedDict()
@@ -938,7 +945,7 @@ class GMS:
         self.t_ductile = [xpoints, ypoints, t_ductile]
         self.t_brittle = [xpoints, ypoints, t_brittle]
 
-    def compute_elastic_thickness(self, dx=50e3, nz=500, mode='compression',
+    def compute_elastic_thickness(self, dx=None, nz=500, mode='compression',
                                   strain_rate=None, crit_sigma=20,
                                   crit_plitho=0.05):
         """Compute the effective elastic thickness of the model.
@@ -965,11 +972,17 @@ class GMS:
 
         """
         strain_rate = strain_rate or self.strain_rate
-        xmin, xmax = self.xlim
-        ymin, ymax = self.ylim
-        pointsx = np.arange(xmin, xmax+dx, dx)
-        pointsy = np.arange(ymin, ymax+dx, dx)
-        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+        if dx is None:
+            xpoints = self.data_raw[:, 0]
+            ypoints = self.data_raw[:, 1]
+        else:
+            xmin, xmax = self.xlim
+            ymin, ymax = self.ylim
+            pointsx = np.arange(xmin, xmax+dx, dx)
+            pointsy = np.arange(ymin, ymax+dx, dx)
+            xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+            xpoints = xgrid.flatten()
+            ypoints = ygrid.flatten()
         eff_Te = []
         competent_layers = []
         print('Computing elastic thickness')
@@ -979,21 +992,21 @@ class GMS:
         print('> Number of vertical points :', nz)
         print('> Min. sigma criterion      :', crit_sigma, 'MPa')
         print('> Lithostatic pressure crit.:', crit_plitho*100, '% of Plitho')
-        nmax = xgrid.flatten().shape[0]
         if self.verbose_level >= 0:
             n = show_progress()
+            nmax = xpoints.shape[0]
         yse_return = ['is_competent']
-        for x, y in zip(xgrid.flatten(), ygrid.flatten()):
+        for x, y in zip(xpoints, ypoints):
             well = self.get_well(x, y, var='T')
             result = self.compute_yse(well, mode, nz, strain_rate, crit_plitho,
                                       crit_sigma, return_params=yse_return)
             competent_layers.append(result['n_layers'])
             eff_Te.append(result['Te'])
-        result = np.empty([xgrid.flatten().shape[0], 3])
-        result[:, 0] = xgrid.flatten()
-        result[:, 1] = ygrid.flatten()
             if self.verbose_level >= 0:
                 n = show_progress(n, nmax)
+        result = np.empty([xpoints.shape[0], 3])
+        result[:, 0] = xpoints
+        result[:, 1] = ypoints
         result[:, 2] = np.asarray(eff_Te)
         self.elastic_thickness[strain_rate] = [competent_layers, result]
 
