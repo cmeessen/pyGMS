@@ -374,7 +374,7 @@ class GMS:
 
         # Load the model
         self.load_model()
-        if triangulate:
+        if triangulate and filename:
             self.make_layers()
 
     def __call__(self, x, y, z=None, var=None):
