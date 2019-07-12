@@ -1,3 +1,5 @@
 .vscode
+*.ipynb_checkpoints
+docs/sphinx/build
 pygms_cmeessen.egg-info
 pyGMS/__pycache__
