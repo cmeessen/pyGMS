@@ -4,3 +4,7 @@ docs/sphinx/build
 docs/sphinx/source/savefig
 pygms_cmeessen.egg-info
 pyGMS/__pycache__
+__pycache__
+coverage.xml
+.coverage
+htmlcov

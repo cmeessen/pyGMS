@@ -1,0 +1,39 @@
+# Type: GMS GridPoints
+# Version: 2
+# Description:
+# Format: free
+# Field: 0 X
+# Field: 1 Y
+# Field: 2 Z
+# Field: 3 RhoB
+# Field: 4 Tcond
+# Field: 5 Tspec
+# Field: 6 HeatGen
+# Field: 7 T
+# Projection: Local Rectangular
+# Information from grid:
+# Grid_size: 2 x 2 x 4
+# Grid_X_range: 0 to 100000
+# Grid_Y_range: 0 to 100000
+# Grid_Z_range: -50000 to 0
+# LayerName: 0 Sediments
+# LayerName: 1 Crust
+# LayerName: 2 Mantle
+# LayerName: 3 Base
+# End:
+     0      0      0 2440 2.1 0 0 0.0
+100000      0      0 2440 2.1 0 0 0.0
+     0 100000      0 2440 2.1 0 0 0.0
+100000 100000      0 2440 2.1 0 0 0.0
+     0      0 -10000 2800 2.1 0 0 200.0
+100000      0 -10000 2800 2.1 0 0 200.0
+     0 100000 -10000 2800 2.1 0 0 200.0
+100000 100000 -10000 2800 2.1 0 0 200.0
+     0      0 -40000 2800 2.1 0 0 800.0
+100000      0 -40000 2800 2.1 0 0 800.0
+     0 100000 -40000 2800 2.1 0 0 800.0
+100000 100000 -40000 2800 2.1 0 0 800.0
+     0      0 -50000 2800 2.1 0 0 1000.0
+100000      0 -50000 2800 2.1 0 0 1000.0
+     0 100000 -50000 2800 2.1 0 0 1000.0
+100000 100000 -50000 2800 2.1 0 0 1000.0
