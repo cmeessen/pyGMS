@@ -337,7 +337,7 @@ class GMS:
     # TODO: Plotting uses different ways to handle unit scaling. Rewrite the
     #  methods in a way that they use mpl.ticker.FuncFormatter (see plot_yse)
 
-    def __init__(self, filename, triangulate=True, verbosity=0):
+    def __init__(self, filename=None, triangulate=True, verbosity=0):
         """Initialise GMS class."""
         self.gms_fem = filename
 
@@ -372,10 +372,8 @@ class GMS:
         self.body_materials = None   # Materials for each body
         self.elastic_thickness = {}  # effective elastic thickness
 
-        print('Loading', self.gms_fem)
-        self.read_header()
-        self.load_points()
-        print('Done!')
+        # Load the model
+        self.load_model()
         if triangulate:
             self.make_layers()
 
@@ -1316,6 +1314,27 @@ class GMS:
         self.n_layers_unique = len(list(layer_d_unique.keys()))
         self.points_per_layer = self.nx*self.ny
         self._v_('Number of layers:' + str(n_layers))
+
+    def load_model(self, filename=None):
+        """Load a GMS model.
+
+        Loads a GMS model specified by the argument. If `filename=None` will
+        load the file specified in `self.gms_fem`.
+
+        Parameters
+        ----------
+            filename : str
+                The path and file name of the GMS model.
+
+        """
+        filename = filename or self.gms_fem
+        if filename is None:
+            self._v_("No GMS file name specified.")
+        else:
+            print('Loading', self.gms_fem)
+            self.read_header()
+            self.load_points()
+            print('Done!')
 
     def load_points(self):
         """Load the data points of the GMS model."""
