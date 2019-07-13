@@ -296,7 +296,7 @@ class Well:
         """
         ax = ax or plt.axes()
         grad = self.grad(varname)
-        if abssolute:
+        if absolute:
             grad = np.abs(grad)
         kwds.setdefault('label', 'grad('+varname+')')
         ax.plot(grad*scale, self.z, **kwds)
