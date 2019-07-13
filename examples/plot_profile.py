@@ -6,7 +6,7 @@ def read_args():
     """Read and handle command line arguments."""
     if len(sys.argv) < 3:
         print("Error: not enough arguments!")
-        print("Usage: profile GMS_FEM FILE1 [FILE2] [...]")
+        print("Usage: plot_profile GMS_FEM FILE1 [FILE2] [...]")
         print("")
         print("Plot one or multiple YSE-profiles from YSE_profile")
         print("")

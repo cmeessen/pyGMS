@@ -2,4 +2,4 @@
 
 export PYTHONPATH="../:${PYTHONPATH}"
 
-python profile.py $@
+python plot_profile.py $@
