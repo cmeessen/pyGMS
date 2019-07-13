@@ -265,7 +265,7 @@ class Well:
         ax = ax or plt.axes()
         ax.plot(self.vars[varname], self.z, **kwds)
 
-    def plot_grad(self, varname, scale=1, return_array=False, abs=False,
+    def plot_grad(self, varname, scale=1, return_array=False, absolute=False,
                   ax=None, **kwds):
         """Plot the gradient of a variable.
 
@@ -279,7 +279,7 @@ class Well:
             Multiply the gradient by this value.
         return_array : bool
             If `true` will return the gradient array.
-        abs : bool
+        absolute : bool
             Plot the absolute value of `varname`.
         ax : matplotlib.axes, optional
             An existing matplotlib.axes.
@@ -296,7 +296,7 @@ class Well:
         """
         ax = ax or plt.axes()
         grad = self.grad(varname)
-        if abs:
+        if abssolute:
             grad = np.abs(grad)
         kwds.setdefault('label', 'grad('+varname+')')
         ax.plot(grad*scale, self.z, **kwds)
@@ -483,7 +483,6 @@ class GMS:
     def info(self):
         """Display info about the pyGMS object."""
         self._info_()
-        pass
 
     @property
     def xlim(self):
@@ -1744,7 +1743,7 @@ class GMS:
                               cmap=afrikakarte(), vmin=vmin, vmax=vmax)
 
     def plot_profile(self, x0, y0, x1, y1, var='T', num=100, ax=None,
-                     unit='m', type='filled', xaxis='dist', annotate=False,
+                     unit='m', kind='filled', xaxis='dist', annotate=False,
                      **kwds):
         """Plot a profile.
 
@@ -1762,7 +1761,7 @@ class GMS:
             The axis to plot to
         unit : {'m', 'km'}
             Defines the unit of length.
-        type : str
+        kind : str
             'filled' for a filled contour plot or 'lines', 'contours' for
             contours
         xaxis : str
@@ -1772,16 +1771,16 @@ class GMS:
             If `True` will annotate the contour lines.
         kwds : dict
            Keywords sent to matplotlib.pyplot.tricontour() or
-           matplotlib.pyplot.contourf(), depoending on `type`
+           matplotlib.pyplot.contourf(), depoending on `kind`
 
         Returns
         -------
         mappable
 
         """
-        valid_types = ['filled', 'lines', 'contour']
-        if type not in valid_types:
-            raise ValueError('Invalid type', type)
+        valid_kinds = ['filled', 'lines', 'contour']
+        if kind not in valid_kinds:
+            raise ValueError('Invalid type', kind)
 
         length_units = {'km': 1e-3, 'm': 1}
         _ = length_units[unit]
@@ -1825,9 +1824,9 @@ class GMS:
         t = tri.Triangulation(d*self.n_layers, z)
 
         # Print the contours
-        if type == 'filled':
+        if kind == 'filled':
             obj = ax.tricontourf(t, v, **kwds)
-        elif type == 'lines' or type == 'contours':
+        elif kind == 'lines' or kind == 'contours':
             obj = ax.tricontour(t, v, **kwds)
             if annotate:
                 ax.clabel(obj, colors='black')
