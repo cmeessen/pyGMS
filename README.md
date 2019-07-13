@@ -24,9 +24,9 @@ If you find bugs, have a feature wish or a pull request, please open an
 
 Before preparing a pull request make sure to
 
-- [ ] comment the code
-- [ ] update CHANGELOG
-- [ ] check code style (`make pycodestyle`)
-- [ ] add a test if the contribution adds a new feature or fixes a bug
-- [ ] update the documentation (`cd docs/sphinx && make html && make gh-pages`)
-- [ ] run `make coverage` (maintainers only)
+- comment the code
+- update CHANGELOG
+- check code style (`make pycodestyle`)
+- add a test if the contribution adds a new feature or fixes a bug
+- update the documentation (`cd docs/sphinx && make html && make gh-pages`)
+- run `make coverage` (maintainers only)

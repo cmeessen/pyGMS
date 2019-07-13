@@ -64,15 +64,14 @@ def check_ipython():
             mpl.use('agg')
 
 
-def afrikakarte(type='listed'):
+def afrikakarte(kind='listed'):
     """Get a pretty colormap.
 
-    Returns the afrikakarte colormap (source:
-    http://soliton.vm.bytemark.co.uk/pub/cpt-city/wkp/lilleskut/tn/afrikakarte.png.index.html)
+    Returns the afrikakarte colormap (`source <http://soliton.vm.bytemark.co.uk/pub/cpt-city/wkp/lilleskut/tn/afrikakarte.png.index.html>`_)
 
     Parameters
     ----------
-    type : string
+    kind :{'listed', 'linear'}
         'listed' returns a ListedColormap, 'linear' returns a
         LinearSegmentedColormap
 
@@ -94,10 +93,10 @@ def afrikakarte(type='listed'):
             [192, 154, 83],
             [236, 236, 236]]
     vals = np.asarray(vals)/256.0
-    if type == 'listed':
+    if kind == 'listed':
         from matplotlib.colors import ListedColormap
         return ListedColormap(vals.tolist(), 'afrikakarte')
-    elif type == 'linear':
+    elif kind == 'linear':
         from matplotlib.colors import LinearSegmentedColormap
         return LinearSegmentedColormap('afrikakarte', vals.tolist())
 

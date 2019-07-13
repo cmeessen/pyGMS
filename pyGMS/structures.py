@@ -1989,7 +1989,7 @@ class GMS:
                 kwds_fig['figsize'] = (3, 3)
             if 'dpi' not in kwds_fig:
                 kwds_fig['dpi'] = 150
-            fig = plt.figure(**kwds_fig)
+            plt.figure(**kwds_fig)
         ax = ax or plt.axes()
 
         if 'solid_joinstyle' not in list(plot_kwds.keys()):
@@ -2077,7 +2077,6 @@ class GMS:
         if ax_new:
             ax.set_xlabel('$\Delta\sigma_{max}$ / MPa')
             ax.set_ylabel('Elevation / km')
-            # fig.show()
 
         if 'Te' in return_params:
             return eff_Te
@@ -2129,8 +2128,8 @@ class GMS:
             for layer_name in bodies.keys():
                 material = bodies[layer_name]
                 i = 0
-                for id in self.layer_dict.keys():
-                    name = self.layer_dict[id].split('_')[0]
+                for lay_id in self.layer_dict.keys():
+                    name = self.layer_dict[lay_id].split('_')[0]
                     if name == layer_name:
                         self.body_materials[i] = material
                     i += 1
