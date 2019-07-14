@@ -239,7 +239,7 @@ class Well:
 
         """
         if interp:
-            z, values, layer_ids = self.get_interpolated_var(interp, varname)
+            z, values, _ = self.get_interpolated_var(interp, varname)
             return np.gradient(values, z), z
         else:
             z = self.z
@@ -1674,7 +1674,8 @@ class GMS:
             profile_distance = []
             self._v_('Computing strength', 0)
             self._v_(('Strength scale:', dsigma_scale), 1)
-            i = show_progress()
+            if self.verbose_level >= 0:
+                i = show_progress()
             imax = len(px)
             for x, y, p_dist in zip(px, py, d):
                 profile_distance.extend([p_dist]*num_vert)
@@ -1687,7 +1688,8 @@ class GMS:
                     c_depths = results['competent_depths']
                     competent_y.extend(c_depths)
                     competent_x.extend([p_dist]*len(c_depths))
-                i = show_progress(i, imax)
+                if self.verbose_level >= 0:
+                    i = show_progress(i, imax)
             t = tri.Triangulation(x=np.asarray(profile_distance),
                                   y=np.asarray(depths))
             self._strength_profiles[profile_stats] = (t, strength, competent_x,

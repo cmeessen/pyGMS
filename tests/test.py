@@ -1,8 +1,12 @@
 import unittest
 import numpy as np
+from matplotlib import tri
 import sys
 sys.path.append('../')
 from pyGMS import GMS
+from pyGMS.structures import Well
+from pyGMS.structures import Layer
+from pandas import DataFrame
 
 
 def test_material():
@@ -70,6 +74,114 @@ bodies = {
     'Base': 'test_material'
 }
 
+
+class TestLayer(unittest.TestCase):
+
+    def test_call_fail(self):
+        L = Layer([0, 1, 2], [1, 2, 0], [0, 0, 0], 0)
+        with self.assertRaises(AttributeError):
+            L(0, 0, 'T')
+
+
+class TestWell(unittest.TestCase):
+
+    def test_call(self):
+        m = GMS(testmodel, verbosity=-1)
+        w = m.get_well(0, 0 )
+        self.assertListEqual(w().tolist(), [0., -10e3, -40e3, -50e3])
+
+    def test_getitem(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.layer_add_var('T')
+        w = m.get_well(0, 0, 'T')
+        self.assertListEqual(w['T'].tolist(), [0., 200., 800., 1000.])
+
+    def test_plot_grad(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.layer_add_var('T')
+        w = m.get_well(0, 0, 'T')
+        for grad in w.plot_grad('T', return_array=True, absolute=True):
+            self.assertAlmostEqual(grad, 0.02)
+
+
+class TestGMS(unittest.TestCase):
+
+    def test_call_well(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertIsInstance(m(50e3, 50e3), Well)
+
+    def test_call_depth(self):
+        m = GMS(testmodel, verbosity=-1)
+        result = m(50e3, 50e3, -5e3)
+        target = [0, 'Sediments']
+        self.assertListEqual(result, target)
+
+    def test_getitem_laye_int(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertIsInstance(m[0], Layer)
+
+    def test_getitem_layer_str(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertIsInstance(m['Sediments'], Layer)
+
+    def test_getitem_layer_str_fail(self):
+        m = GMS(testmodel, verbosity=-1)
+        with self.assertRaises(ValueError):
+            m['fail']
+
+    def test_get_xlim(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertTupleEqual(m.xlim, (0., 100e3))
+
+    def test_get_ylim(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertTupleEqual(m.ylim, (0., 100e3))
+
+    def test_get_zlim(self):
+        m = GMS(testmodel, verbosity=-1)
+        self.assertTupleEqual(m.zlim, (-50e3, 0.))
+
+    def test_info_df(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.info
+        self.assertIsInstance(m._info_df, DataFrame)
+
+
+class TestPlot(unittest.TestCase):
+
+    def test_plot_topography(self):
+        m = GMS(testmodel, verbosity=-1)
+        t = m.plot_topography()
+        self.assertIsInstance(t, tri.TriContourSet)
+        levels = t.levels.tolist()
+        levels_target = [-2.4999999999999994e-14, 0.0, 2.4999999999999994e-14]
+        self.assertListEqual(levels, levels_target)
+
+    def test_plot_yse(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.layer_add_var('T')
+        m.set_rheology(strain_rate=strain_rate,
+                       rheologies=[test_material_dict],
+                       bodies=bodies)
+        te = m.plot_yse((50e3, 50e3), return_params=['Te'])
+        te_target = 21442.885771543086
+        self.assertAlmostEqual(te, te_target)
+
+    def test_plot_profile(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.layer_add_var('T')
+        obj = m.plot_profile(0, 0, 100e3, 100e3, num=10, annotate=True)
+        self.assertIsInstance(obj, tri.TriContourSet)
+
+    def test_plot_strength_profile(self):
+        m = GMS(testmodel, verbosity=-1)
+        m.layer_add_var('T')
+        m.set_rheology(strain_rate=strain_rate,
+                       rheologies=[test_material_dict],
+                       bodies=bodies)
+        obj = m.plot_strength_profile(0, 0, 100e3, 100e3, num=10,
+                                      show_competent=True)
+        self.assertIsInstance(obj, tri.TriContourSet)
 
 class TestThermal(unittest.TestCase):
 
