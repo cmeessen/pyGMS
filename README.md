@@ -13,7 +13,7 @@ purpose of plotting yield strength envelope cross sections for my PhD thesis.
 
 This is a short version of the installation instructions. For a more detailed
 version visit the
-[documentation](https://cmeesse.github.io/pyGMS/installation.html).
+[documentation](https://cmeessen.github.io/pyGMS/installation.html).
 
 ```bash
 # Clone the repository
