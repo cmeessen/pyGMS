@@ -9,6 +9,28 @@ lithosphere-scale 3D structural models that were created with the
 (GMS, GFZ Potsdam). `pyGMS` was originally written for the
 purpose of plotting yield strength envelope cross sections for my PhD thesis.
 
+## Installation
+
+This is a short version of the installation instructions. For a more detailed
+version visit the
+[documentation](https://cmeesse.github.io/pyGMS/installation.html).
+
+```bash
+# Clone the repository
+git clone git@github.com:cmeessen/pyGMS.git
+
+# Create an Anaconda environment
+cd pyGMS
+conda env create -f environment.yml
+
+# Install with pip
+conda activate pygms
+pip install -e .
+
+# Install some dependencies to be able to see the kernel in Jupyter notebooks
+conda install -c conda-forge nb_conda_kernels
+```
+
 ## Documentation
 
 Please have a look at the
