@@ -24,3 +24,5 @@ coverage:
 	coverage run tests/test.py
 	coverage xml
 	python-codacy-coverage -r coverage.xml
+	rm coverage.xml
+	rm .coverage
