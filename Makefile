@@ -22,7 +22,7 @@ test:
 
 coverage:
 	coverage run tests/test.py
-	coverage xml
+	coverage xml -i
 	python-codacy-coverage -r coverage.xml
 	rm coverage.xml
 	rm .coverage
