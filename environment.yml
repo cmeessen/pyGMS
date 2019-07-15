@@ -17,8 +17,7 @@ dependencies:
     - pep8
     - sphinx
     - sphinxcontrib-bibtex
+    - sphinx_rtd_theme
     - doc8
     - m2r
-    - pip:
-        - sphinx_theme
-        - sphinxcontrib-jupyter
+    - coverage
