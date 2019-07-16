@@ -1,0 +1,295 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Getting started &mdash; pyGMS 1.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script type="text/javascript" src="_static/copy_button.js"></script>
+        <script type="text/javascript" src="_static/clipboard.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/copy_button.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Visualisation" href="visualisation.html" />
+    <link rel="prev" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> pyGMS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#loading-a-model">Loading a model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loading-variables">Loading variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="visualisation.html">Visualisation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="computations.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">pyGMS</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content style-external-links">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Getting started</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/getting_started.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="getting-started">
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h1>
+<p>This page is an overview of the features within pyGMS. Many of the methods
+shown here have plenty of configuration options. Please refer to the
+documentation of the individual methods to gain more information. An overview
+of the most important classes and their methods is given in <a class="reference internal" href="api_reference.html#api"><span class="std std-ref">API</span></a>.</p>
+<p>For installation instructreions see <a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>. Generally, I recommend
+to use pyGMS together with <a class="reference external" href="https://continuum.io">Anaconda</a> and <a class="reference external" href="https://jupyter.org">jupyter</a>.</p>
+<div class="section" id="loading-a-model">
+<h2>Loading a model<a class="headerlink" href="#loading-a-model" title="Permalink to this headline">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>pyGMS currently only works with models that were saved in ASCII
+fromat.</p>
+</div>
+<p>To get started, import the <code class="xref py py-class docutils literal notranslate"><span class="pre">GMS</span></code> class of pyGMS and
+load a GMS model file.</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">from</span> <span class="nn">pyGMS</span> <span class="kn">import</span> <span class="n">GMS</span>
+
+<span class="gp">In [2]: </span><span class="n">model</span> <span class="o">=</span> <span class="n">GMS</span><span class="p">(</span><span class="s1">&#39;../../examples/model.fem&#39;</span><span class="p">)</span>
+<span class="go">Loading ../../examples/model.fem</span>
+<span class="go">Done!</span>
+<span class="go">Triangulating layers</span>
+<span class="go">Done!</span>
+</pre></div>
+</div>
+<p>You can display some information about to model using the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">info</span></code> property:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [3]: </span><span class="n">model</span><span class="o">.</span><span class="n">info</span>
+<span class="go">                             ../../examples/model.fem</span>
+<span class="go">Number of layers                                   46</span>
+<span class="go">Number of unique layers                             6</span>
+<span class="go">Points per layer                                 1881</span>
+<span class="go">Number of points                                86526</span>
+<span class="go">xlim                            (200000.0, 1000000.0)</span>
+<span class="go">ylim                           (6200000.0, 7600000.0)</span>
+<span class="go">zlim                     (-102500.104684, 4736.80127)</span>
+</pre></div>
+</div>
+<p>To check whether it was loaded correctly, we can for example plot a profile:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [4]: </span><span class="n">model</span><span class="o">.</span><span class="n">plot_topography</span><span class="p">();</span>
+</pre></div>
+</div>
+<img alt="_images/plot_topography.png" src="_images/plot_topography.png" />
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <cite>;</cite> at the end of the command is only required for technical reasons
+within this documentation of pyGMS.</p>
+</div>
+<p>or list the layers:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [5]: </span><span class="n">model</span><span class="o">.</span><span class="n">layer_dict_unique</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<span class="gh">Out[5]: </span><span class="go">odict_items([(0, &#39;Sediments&#39;), (5, &#39;UpperCrustRDP&#39;), (15, &#39;UpperCrustPampia&#39;), (25, &#39;LowerCrust&#39;), (35, &#39;LithMantle&#39;), (45, &#39;Base&#39;)])</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The layer references are stored as dictionaries that link the layer id to
+the layer name. The <cite>layer_dict_unique</cite> contains the primary layers,
+whereas the <cite>layer_dict</cite> also contains all refined layers.</p>
+</div>
+</div>
+<div class="section" id="loading-variables">
+<h2>Loading variables<a class="headerlink" href="#loading-variables" title="Permalink to this headline">¶</a></h2>
+<p>To accelerate pyGMS, variables are not loaded into the model when initiating
+an object. The available variable names are stored in the <code class="docutils literal notranslate"><span class="pre">field_dict</span></code> of a
+pyGMS model:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [6]: </span><span class="n">model</span><span class="o">.</span><span class="n">field_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="gh">Out[6]: </span><span class="go">dict_keys([&#39;X&#39;, &#39;Y&#39;, &#39;Z&#39;, &#39;RhoB&#39;, &#39;Tcond&#39;, &#39;Tspec&#39;, &#39;HeatGen&#39;, &#39;T&#39;])</span>
+</pre></div>
+</div>
+<p>In order to add a variable, use the function
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">layer_add_var()</span></code>. In this case we add the
+temperature variable <code class="docutils literal notranslate"><span class="pre">T</span></code>:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [7]: </span><span class="n">model</span><span class="o">.</span><span class="n">layer_add_var</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="visualisation.html" class="btn btn-neutral float-right" title="Visualisation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Christian Meeßen
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

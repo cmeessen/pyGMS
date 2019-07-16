@@ -1,0 +1,333 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Installation &mdash; pyGMS 1.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script type="text/javascript" src="_static/copy_button.js"></script>
+        <script type="text/javascript" src="_static/clipboard.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/copy_button.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Getting started" href="getting_started.html" />
+    <link rel="prev" title="Welcome to pyGMS’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> pyGMS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#creating-an-anaconda-environment">Creating an Anaconda environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation-with-pip">Installation with pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#testing-the-installation">Testing the installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#remove-pygms">Remove pyGMS</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualisation.html">Visualisation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="computations.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">pyGMS</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content style-external-links">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Installation</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/installation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="installation">
+<span id="id1"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
+<p>pyGMS must be cloned from the <a class="reference external" href="https://github.com/cmeessen/pyGMS">GitHub repository</a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git clone git@github.com:cmeessen/pyGMS.git
+</pre></div>
+</div>
+<p>pyGMS can now be installed by (optionally) creating an
+<a class="reference external" href="#creating-an-ananconda-environment">Anaconda environment</a>, and then running
+<a class="reference external" href="#installation-with-pip">pip</a>.</p>
+<div class="section" id="creating-an-anaconda-environment">
+<h2>Creating an Anaconda environment<a class="headerlink" href="#creating-an-anaconda-environment" title="Permalink to this headline">¶</a></h2>
+<p>This step is optional. If you do not wish to use an isolated environment, jump
+directly to <a class="reference internal" href="#installation-with-pip">Installation with pip</a>.</p>
+<p>Installing pyGMS with Anaconda allows you to use pyGMS
+inside an environment that does not alter the rest of your Python
+installations. First, if you do not have an installation, download a version
+<a class="reference external" href="https://continuum.io">here</a>.</p>
+<p>Now navigate to the directory where you cloned pyGMS into, and execute</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda env create -f environment.yml
+</pre></div>
+</div>
+<p>This will create an environment named <cite>pygms</cite> that includes all required
+packages. Activate the environment with</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda activate pygms
+</pre></div>
+</div>
+<p>To be able to use the environment as a kernel in jupyter notebooks, run this
+while the <cite>pygms</cite> environment is active</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda install -c conda-forge nb_conda_kernels
+</pre></div>
+</div>
+<p>The environment can be deactivated using:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda deactivate
+</pre></div>
+</div>
+</div>
+<div class="section" id="installation-with-pip">
+<h2>Installation with pip<a class="headerlink" href="#installation-with-pip" title="Permalink to this headline">¶</a></h2>
+<p>To install pyGMS navigate to the base folder of pyGMS (containing <cite>setup.py</cite>)
+and execute:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install -e .
+</pre></div>
+</div>
+<p>The installation with the <code class="docutils literal notranslate"><span class="pre">-e</span></code> flag will create a symbolic link to the
+package, meaning whenever you change something within the repository (e.g. pull
+an update), it will be automatically available.</p>
+</div>
+<div class="section" id="testing-the-installation">
+<h2>Testing the installation<a class="headerlink" href="#testing-the-installation" title="Permalink to this headline">¶</a></h2>
+<p>In order to check whether everything works correctly, execute the tests:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>make <span class="nb">test</span>
+</pre></div>
+</div>
+<p>The output should look like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">tests</span><span class="o">/</span><span class="n">test</span><span class="o">.</span><span class="n">py</span>
+<span class="n">test_call_depth</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_call_well</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_get_xlim</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_get_ylim</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_get_zlim</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_getitem_laye_int</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_getitem_layer_str</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_getitem_layer_str_fail</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_info_df</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestGMS</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_call_fail</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestLayer</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_plot_profile</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestPlot</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_plot_strength_profile</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestPlot</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_plot_topography</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestPlot</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_plot_yse</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestPlot</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_compute_bd_thickness_comp</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_compute_elastic_thickness_comp</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_integrated_strength_comp</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_integrated_strength_ext</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_byerlee_comp</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_byerlee_ext</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_byerlee_fail</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_d_comp</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_d_ext</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_d_fail_z</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_diffusion</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_dislocation</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_dorn</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_dorn_nan_a_d</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_dorn_nan_q_d</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_sigma_dorn_zero</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestRheology</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_heat_flow</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestThermal</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_call</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestWell</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_getitem</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestWell</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+<span class="n">test_plot_grad</span> <span class="p">(</span><span class="n">__main__</span><span class="o">.</span><span class="n">TestWell</span><span class="p">)</span> <span class="o">...</span> <span class="n">ok</span>
+
+<span class="o">----------------------------------------------------------------------</span>
+<span class="n">Ran</span> <span class="mi">34</span> <span class="n">tests</span> <span class="ow">in</span> <span class="mf">1.684</span><span class="n">s</span>
+
+<span class="n">OK</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="remove-pygms">
+<h2>Remove pyGMS<a class="headerlink" href="#remove-pygms" title="Permalink to this headline">¶</a></h2>
+<p>To uninstall pyGMS perform the following steps:</p>
+<ol class="arabic simple">
+<li><p>If you have used pyGMS inside an Anaconda environment simply run</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda env remove -n pygms
+</pre></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p>If you have installed it simply with pip, then run</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip remove pygms-cmeessen
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="getting_started.html" class="btn btn-neutral float-right" title="Getting started" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to pyGMS’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Christian Meeßen
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
