@@ -1,6 +1,7 @@
 # pyGMS
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![DOI](https://zenodo.org/badge/194238991.svg)](https://zenodo.org/badge/latestdoi/194238991)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/50e5df33317949d58e8d7bf7c40a336b)](https://www.codacy.com?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=cmeessen/pyGMS&amp;utm_campaign=Badge_Grade)
 [![Codacy Badge](https://api.codacy.com/project/badge/Coverage/50e5df33317949d58e8d7bf7c40a336b)](https://www.codacy.com?utm_source=github.com&utm_medium=referral&utm_content=cmeessen/pyGMS&utm_campaign=Badge_Coverage)
 
