@@ -894,17 +894,17 @@ class GMS:
         return_params = ['t_brittle', 't_ductile']
 
         if dx is None:
-            xpoints = self.data_raw[:, 0]
-            ypoints = self.data_raw[:, 1]
-            dx = xpoints[1] - xpoints[0]
+            pointsx = np.unique(self.data_raw[:, 0])
+            pointsy = np.unique(self.data_raw[:, 1])
+            dx = pointsx[1] - pointsy[0]
         else:
             xmin, xmax = self.xlim
             ymin, ymax = self.ylim
             pointsx = np.arange(xmin, xmax+dx, dx)
             pointsy = np.arange(ymin, ymax+dx, dx)
-            xgrid, ygrid = np.meshgrid(pointsx, pointsy)
-            xpoints = xgrid.flatten()
-            ypoints = ygrid.flatten()
+        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+        xpoints = xgrid.flatten()
+        ypoints = ygrid.flatten()
 
         t_brittle = OrderedDict()
         t_ductile = OrderedDict()
@@ -972,16 +972,16 @@ class GMS:
         """
         strain_rate = strain_rate or self.strain_rate
         if dx is None:
-            xpoints = self.data_raw[:, 0]
-            ypoints = self.data_raw[:, 1]
+            pointsx = np.unique(self.data_raw[:, 0])
+            pointsy = np.unique(self.data_raw[:, 1])
         else:
             xmin, xmax = self.xlim
             ymin, ymax = self.ylim
             pointsx = np.arange(xmin, xmax+dx, dx)
             pointsy = np.arange(ymin, ymax+dx, dx)
-            xgrid, ygrid = np.meshgrid(pointsx, pointsy)
-            xpoints = xgrid.flatten()
-            ypoints = ygrid.flatten()
+        xgrid, ygrid = np.meshgrid(pointsx, pointsy)
+        xpoints = xgrid.flatten()
+        ypoints = ygrid.flatten()
         eff_Te = []
         competent_layers = []
         print('Computing elastic thickness')
