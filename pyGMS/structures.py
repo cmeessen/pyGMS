@@ -2020,6 +2020,8 @@ class GMS:
                 column_width = body_col_width
             else:
                 column_width = 0.2*(strength.max() - strength.min())
+            if mode == 'extension':
+                column_width *= -1
             layer_ids = results['layer_ids']
             unique_ids = list(self.layer_dict_unique.keys())
             if body_names is None:
@@ -2068,9 +2070,18 @@ class GMS:
         ax.set_ylim(ymin, ymax)
 
         if show_Te:
-            ax.annotate('Te = '+str(np.round(eff_Te/1000, 1))+' km', xy=(1, 0),
-                        xycoords='axes fraction', horizontalalignment='right',
-                        verticalalignment='bottom')
+            if mode == 'extension':
+                ha = 'right'
+                xy = (1, 1)
+                xytext = (-2, -2)
+            else:
+                ha = 'left'
+                xy = (0, 1)
+                xytext = (2, -2)
+            ax.annotate('Te = '+str(np.round(eff_Te/1000, 1))+' km', xy=xy,
+                        xytext=xytext, textcoords='offset points',
+                        xycoords='axes fraction', horizontalalignment=ha,
+                        verticalalignment='top')
 
         if show_title:
             title = title or 'x = '+str(x)+', y = '+str(y)
