@@ -6,6 +6,9 @@
 Welcome to pyGMS's documentation!
 =================================
 
+.. image:: https://zenodo.org/badge/194238991.svg
+   :target: https://zenodo.org/badge/latestdoi/194238991
+
 :mod:`pyGMS` is a Python 3 module designed to analyse the rheological behaviour
 of lithosphere-scale 3D structural models that were created with the
 `GeoModellingSystem <https://www.gfz-potsdam.de/en/section/basin-modeling/infrastructure/gms/>`_

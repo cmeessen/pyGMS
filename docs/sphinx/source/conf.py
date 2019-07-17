@@ -104,7 +104,7 @@ html_theme_options = {
     'logo_only': False,
     'display_version': True,
     'prev_next_buttons_location': 'bottom',
-    'style_external_links': True,
+    'style_external_links': False,
     # 'vcs_pageview_mode': '',
     # 'style_nav_header_background': 'white',
     # Toc options
@@ -113,6 +113,19 @@ html_theme_options = {
     'navigation_depth': 4,
     'includehidden': True,
     'titles_only': False
+}
+
+html_context = {
+    'display_github': True,
+    'github_user': 'cmeessen',
+    'github_repo': 'pyGMS',
+    'github_version': 'master/docs/sphinx',
+    'menu_links_name': 'About:',
+    'menu_links': [
+        ('<i class="fa fa-github fw"></i> GitHub repository', 'https://github.com/cmeessen/pyGMS'),
+        ('<i class="fa fa-bug fw"></i> Open an issue', 'https://github.com/cmeessen/pyGMS/issues/new'),
+        ('<i class="fa fa-quote-left fw"></i> Cite pyGMS', 'https://zenodo.org/badge/latestdoi/194238991')
+    ]
 }
 
 
