@@ -8,7 +8,7 @@ pyGMS must be cloned from the `GitHub repository
 
 .. code-block:: bash
 
-    git clone git@github.com:cmeessen/pyGMS.git
+    git clone https://github.com/cmeessen/pyGMS.git
 
 pyGMS can now be installed by (optionally) creating an
 `Anaconda environment <#creating-an-ananconda-environment>`_, and then running
