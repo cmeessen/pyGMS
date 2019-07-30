@@ -2142,7 +2142,15 @@ class GMS:
                 material = bodies[layer_name]
                 i = 0
                 for lay_id in self.layer_dict.keys():
-                    name = self.layer_dict[lay_id].split('_')[0]
+                    name = self.layer_dict[lay_id]
+                    try:
+                        int(name.rsplit('_', 1)[1]);
+                        self._v_(('Found refined layer' + name), 2)
+                        name = name.rsplit('_', 1)[0]
+                    except IndexError:
+                        pass
+                    except ValueError:
+                        pass
                     if name == layer_name:
                         self.body_materials[i] = material
                     i += 1
