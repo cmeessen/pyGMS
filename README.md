@@ -21,8 +21,13 @@ version visit the
 # Clone the repository
 git clone git@github.com:cmeessen/pyGMS.git
 
-# Create an Anaconda environment
+# Enter the repository
 cd pyGMS
+
+# If you want to use the latest version of pyGMS, checkout the dev branch
+git checkout dev
+
+# Create an Anaconda environment
 conda env create -f environment.yml
 
 # Install with pip

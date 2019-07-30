@@ -10,6 +10,13 @@ pyGMS must be cloned from the `GitHub repository
 
     git clone https://github.com/cmeessen/pyGMS.git
 
+
+If you want to use the latest development version, checkout the `dev` branch:
+
+.. code-block:: bash
+
+    git checkout dev
+
 pyGMS can now be installed by (optionally) creating an
 `Anaconda environment <#creating-an-ananconda-environment>`_, and then running
 `pip <#installation-with-pip>`_.
@@ -122,8 +129,21 @@ The output should look like this:
     OK
 
 
-Remove pyGMS
-------------
+Updating pyGMS
+--------------
+
+Update pyGMS by pulling the latest changes from the repository:
+
+.. code-block:: bash
+
+    git pull
+
+If you have installed pyGMS with the `-e` flag of pip, this will be enough.
+Otherwise, you need to reinstall pyGMS by executnig `pip install .`.
+
+
+Removing pyGMS
+--------------
 
 To uninstall pyGMS perform the following steps:
 

@@ -99,7 +99,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#creating-an-anaconda-environment">Creating an Anaconda environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#installation-with-pip">Installation with pip</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#testing-the-installation">Testing the installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#remove-pygms">Remove pyGMS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#updating-pygms">Updating pyGMS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#removing-pygms">Removing pyGMS</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
@@ -200,6 +201,10 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git clone https://github.com/cmeessen/pyGMS.git
 </pre></div>
 </div>
+<p>If you want to use the latest development version, checkout the <cite>dev</cite> branch:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git checkout dev
+</pre></div>
+</div>
 <p>pyGMS can now be installed by (optionally) creating an
 <a class="reference external" href="#creating-an-ananconda-environment">Anaconda environment</a>, and then running
 <a class="reference external" href="#installation-with-pip">pip</a>.</p>
@@ -291,8 +296,17 @@ an update), it will be automatically available.</p>
 </pre></div>
 </div>
 </div>
-<div class="section" id="remove-pygms">
-<h2>Remove pyGMS<a class="headerlink" href="#remove-pygms" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="updating-pygms">
+<h2>Updating pyGMS<a class="headerlink" href="#updating-pygms" title="Permalink to this headline">¶</a></h2>
+<p>Update pyGMS by pulling the latest changes from the repository:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git pull
+</pre></div>
+</div>
+<p>If you have installed pyGMS with the <cite>-e</cite> flag of pip, this will be enough.
+Otherwise, you need to reinstall pyGMS by executnig <cite>pip install .</cite>.</p>
+</div>
+<div class="section" id="removing-pygms">
+<h2>Removing pyGMS<a class="headerlink" href="#removing-pygms" title="Permalink to this headline">¶</a></h2>
 <p>To uninstall pyGMS perform the following steps:</p>
 <ol class="arabic simple">
 <li><p>If you have used pyGMS inside an Anaconda environment simply run</p></li>
