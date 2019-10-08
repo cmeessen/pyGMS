@@ -207,6 +207,12 @@ to use pyGMS together with <a class="reference external" href="https://continuum
 <p>pyGMS currently only works with models that were saved in ASCII
 fromat.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>pyGMS recognises layer refinement by checking whether a layer name
+ends with <cite>_</cite> followed by a number, e.g. <cite>_42</cite>. When naming your
+layers make sure not to use names that end with such a pattern.</p>
+</div>
 <p>To get started, import the <code class="xref py py-class docutils literal notranslate"><span class="pre">GMS</span></code> class of pyGMS and
 load a GMS model file.</p>
 <div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">from</span> <span class="nn">pyGMS</span> <span class="kn">import</span> <span class="n">GMS</span>

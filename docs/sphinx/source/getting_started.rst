@@ -17,6 +17,10 @@ Loading a model
 .. note:: pyGMS currently only works with models that were saved in ASCII
           fromat.
 
+.. note:: pyGMS recognises layer refinement by checking whether a layer name
+          ends with `_` followed by a number, e.g. `_42`. When naming your
+          layers make sure not to use names that end with such a pattern.
+
 To get started, import the :class:`~pyGMS.structures.GMS` class of pyGMS and
 load a GMS model file.
 

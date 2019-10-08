@@ -1517,6 +1517,7 @@ class GMS:
         j = 0
         for i in layer_d.keys():
             layer = self.layers[i]  # type: Layer
+            self._v_(('Processing layer ', layer.name), 2)
             z = []
             for x, y in zip(px, py):
                 z.append(layer(x, y))
@@ -1892,7 +1893,8 @@ class GMS:
         fill_mode : str, optional
             `envelope` or `box` to mark the competent layers according to the
             chosen `crit_sigma` and `crit_plitho`. `envelope` fills the area
-            between the YSE and 0 Pa, `box` creates boxes.
+            between the YSE and 0 Pa, `box` creates boxes. Disable the plotting
+            of competent layers by using `None`.
         lambel_competent : str, optional
             The label that should be used to mark the filled area.
         label_envelope : str
@@ -1983,6 +1985,8 @@ class GMS:
             if mode == 'compression':
                 max_fill_x *= -1
             x_fill = np.ma.masked_where(np.invert(is_competent), max_fill_x)
+        elif fill_mode is None:
+            label_competent = False
 
         ax_new = False
         if ax is None:
